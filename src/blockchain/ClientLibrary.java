@@ -4,18 +4,20 @@ import java.net.InetAddress;
 import communication.NetworkHandler;
 
 public class ClientLibrary {
-	private final NetworkHandler networkHandler;
-    private final InetAddress serverAddress;
-    private final int serverPort;
-    
-    public ClientLibrary(String serverHost, int serverPort) throws Exception {
-        this.networkHandler = new NetworkHandler(0); // Let OS assign port
-        this.serverAddress = InetAddress.getByName(serverHost);
-        this.serverPort = serverPort;
+    private final NetworkHandler networkHandler;
+    private final InetAddress leaderAddress;
+    private final int leaderPort;
+
+    public ClientLibrary(String leaderHost, int leaderPort) throws Exception {
+        this.networkHandler = new NetworkHandler(0); // O sistema de rede vai atribuir a porta
+        this.leaderAddress = InetAddress.getByName(leaderHost);
+        this.leaderPort = leaderPort;
     }
-    
-    public void sendTransaction(String transaction) throws Exception {
-        networkHandler.sendMessage("APPEND|" + transaction, serverAddress, serverPort);
-        System.out.println("Transaction sent: " + transaction);
+
+    // Método que o cliente usa para enviar uma proposta de valor ao líder
+    public void sendConsensusRequest(String value) throws Exception {
+        String message = "CONSENSUS_REQUEST|" + value;
+        networkHandler.sendMessage(message, leaderAddress, leaderPort);
+        System.out.println("Sent consensus request: " + value);
     }
 }

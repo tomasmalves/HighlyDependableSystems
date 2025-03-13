@@ -1,5 +1,6 @@
 package consensus;
 
+import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.Map;
 import communication.NetworkHandler;
@@ -10,38 +11,33 @@ public class ConsensusNode {
     private final int nodeId;
     private final NetworkHandler networkHandler;
     private final Map<Integer, String> proposedValues;
+    private final Map<Integer, String> votes; // Armazena os votos dos nós
     private final PublicKey publicKey;
     private final PrivateKey privateKey;
     private final MembershipConfig membershipConfig;
 
-    /**
-     * Creates a new ConsensusNode with the specified ID and port.
-     * 
-     * @param nodeId The ID of this node
-     * @param port   The port to listen on
-     */
     public ConsensusNode(int nodeId, int port) throws Exception {
         this.nodeId = nodeId;
         this.networkHandler = new NetworkHandler(port);
         this.proposedValues = new HashMap<>();
+        this.votes = new HashMap<>();
 
-        // Generate a key pair for signing and verifying messages
+        // Gerar par de chaves para assinar/verificar mensagens
         KeyPair keyPair = generateKeyPair();
         this.publicKey = keyPair.getPublic();
         this.privateKey = keyPair.getPrivate();
 
-        // Initialize membership configuration
+        // Inicializa a configuração de membros
         this.membershipConfig = new MembershipConfig(nodeId);
 
-        System.out.println("ConsensusNode initialized with ID: " + nodeId);
-        System.out.println("Total nodes in system: " + membershipConfig.getNodeCount());
-        System.out.println("Leader node: " + membershipConfig.getLeaderInfo().getId());
+        System.out.println("ConsensusNode inicializado com ID: " + nodeId);
+        System.out.println("Total de nós no sistema: " + membershipConfig.getNodeCount());
+        System.out.println("Líder atual: " + membershipConfig.getLeaderInfo().getId());
 
-        // Log if this node is the leader
         if (membershipConfig.isLeader()) {
-            System.out.println("This node is the LEADER");
+            System.out.println("Este nó é o LÍDER");
         } else {
-            System.out.println("This node is a FOLLOWER");
+            System.out.println("Este nó é um SEGUIDOR");
         }
     }
 
@@ -51,7 +47,7 @@ public class ConsensusNode {
 
     private KeyPair generateKeyPair() throws Exception {
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
-        keyGen.initialize(2048); // 2048-bit key for security
+        keyGen.initialize(2048);
         return keyGen.generateKeyPair();
     }
 
@@ -63,47 +59,68 @@ public class ConsensusNode {
         return privateKey;
     }
 
+    /**
+     * Propor um valor no consenso
+     */
     public void proposeValue(int epoch, String value) {
         proposedValues.put(epoch, value);
-        System.out.println("Node " + nodeId + " proposed value for epoch " + epoch + ": " + value);
+        System.out.println("Nó " + nodeId + " propôs valor para época " + epoch + ": " + value);
     }
 
-    public void decideValue(int epoch) {
-        if (proposedValues.containsKey(epoch)) {
-            System.out.println("Node " + nodeId + " decided on value: " + proposedValues.get(epoch));
+    /**
+     * Decidir sobre um valor para uma determinada época
+     */
+    public void decideValue(int epoch, String value) {
+        if (value != null) {
+            System.out.println("Nó " + nodeId + " decidiu pelo valor: " + value + " na época " + epoch);
         } else {
-            System.out.println("Node " + nodeId + " has no proposed value for epoch " + epoch);
+            System.out.println("Nó " + nodeId + " não tem valor proposto para época " + epoch);
         }
     }
 
+    /**
+     * Retorna o valor proposto para um determinado epoch
+     */
     public String getProposedValue(int epoch) {
         return proposedValues.getOrDefault(epoch, null);
     }
 
     /**
-     * Get the membership configuration.
-     * 
-     * @return The membership configuration
+     * Enviar um voto para o líder
+     */
+    public void sendVote(int epoch, String value, InetAddress leaderAddress, int leaderPort) throws Exception {
+        ConsensusMessage voteMessage = new ConsensusMessage(ConsensusMessage.MessageType.VOTE, epoch, value, privateKey);
+        networkHandler.sendMessage(voteMessage.toString(), leaderAddress, leaderPort);
+        System.out.println("Nó " + nodeId + " votou no valor: " + value + " na época " + epoch);
+    }
+
+    /**
+     * Receber um voto de outro nó e armazená-lo
+     */
+    public void receiveVote(int epoch, String value) {
+        votes.put(epoch, value);
+        System.out.println("Nó " + nodeId + " recebeu voto para valor: " + value + " na época " + epoch);
+    }
+
+    /**
+     * Retorna a configuração de membros
      */
     public MembershipConfig getMembershipConfig() {
         return membershipConfig;
     }
 
     /**
-     * Get the network handler.
-     * 
-     * @return The network handler
+     * Retorna o manipulador de rede
      */
     public NetworkHandler getNetworkHandler() {
         return networkHandler;
     }
 
     /**
-     * Start the consensus protocol.
+     * Iniciar o protocolo de consenso
      */
     public void start() {
-        System.out.println("Node " + nodeId + " starting consensus protocol...");
-        // Implementation of the consensus protocol will go here
-        // send to leader
+        System.out.println("Nó " + nodeId + " iniciando protocolo de consenso...");
+        // Implementação do protocolo será adicionada aqui
     }
 }
