@@ -1,0 +1,2 @@
+- NetworkHandler, para ser descontinuado, usar apenas AuthenticatedPerfectLinks
+- ConsensusMessage para ser descontinuado.
