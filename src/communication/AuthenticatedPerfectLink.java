@@ -14,6 +14,9 @@ public class AuthenticatedPerfectLink {
     private final DatagramSocket socket;
     private final Key hmacKey;
 
+    
+    //IMPLEMENTAR LIGAÇÃO/COMUNICAÇÃO ENTRE IP'S (INET ADDRESS)
+    //IMPLEMENTAR A QUESTÃO DOS SECRET KEYS (A CLASSE SERVER VAI CRIAR UM FICHEIRO COM AS SECRET KEYS DE CADA PAR)
     public AuthenticatedPerfectLink(int nodeId, int port, String secretKey) throws Exception {
         this.nodeId = nodeId;
         this.port = port;

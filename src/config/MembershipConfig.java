@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 import consensus.ConsensusNode;
 
-//DONE
+//NÃO UTILIZAR, TALVEZ REUTILIZAR
 public class MembershipConfig {
     // Constants for configuration
     private static final int LEADER_ID = 0;

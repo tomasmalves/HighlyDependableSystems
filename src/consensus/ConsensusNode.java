@@ -3,7 +3,6 @@ package consensus;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
-import communication.NetworkHandler;
 import config.MembershipConfig;
 import java.security.*;
 import communication.AuthenticatedPerfectLink;
@@ -14,8 +13,8 @@ import communication.AuthenticatedPerfectLink;
 public class ConsensusNode {
     private final int nodeId;
     private final AuthenticatedPerfectLink apl;
-    private final Map<Integer, String> proposedValue;
-    
+    private Map<Integer, String> writeSet;
+    private Object[] tsValue = {0, ""};
     private final PublicKey publicKey;
     private final PrivateKey privateKey;
 
@@ -31,7 +30,8 @@ public class ConsensusNode {
     	this.nodeId = nodeId;
     	
     	//alterar na fase 2 do projeto
-        this.proposedValue = new HashMap<>();
+        this.writeSet = new HashMap<>();
+        
         
     	// Generate a key pair for signing and verifying messages
         KeyPair keyPair = generateKeyPair();
@@ -50,10 +50,19 @@ public class ConsensusNode {
     	return apl.getPort();
     }
     
-    public Map<Integer, String> getProposedValue(){
-    	return proposedValue;
+    public Map<Integer, String> getWriteSet(){
+    	return writeSet;
     }
 
+    public Object[] getTsValue() {
+    	return tsValue;
+    }
+    
+    public void setTsValue(int ts, String string) {
+    	tsValue[0] = ts;
+    	tsValue[1] = string;
+    }
+    
     private KeyPair generateKeyPair() throws Exception {
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
         keyGen.initialize(2048); // 2048-bit key for security
@@ -96,4 +105,5 @@ public class ConsensusNode {
     public String receiveMessage() throws Exception {
         return apl.receive();
     }
+    
 }

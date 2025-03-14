@@ -1,29 +1,37 @@
 import consensus.ConsensusNode;
+
 import consensus.LeaderNode;
 import blockchain.BlockchainService;
-import communication.NetworkHandler;
 import config.MembershipConfig;
 
 import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.Map;
+import consensus.ConditionalCollect;
 
 /**
  * Main class to start a DepChain node with the appropriate ID and role.
  */
+
+//REUTILIZADO PARA O MAIN DO SERVER
 public class DepChainApplication {
 	// Static configuration for the system membership
 	private static final int LEADER_ID = 0;
 	private static final int BASE_PORT = 10000;
 	private static final int DEFAULT_NODE_COUNT = 4;
+	private ConditionalCollect cc;
+	
 
 	// Store public keys of all nodes for verification
-	private static final Map<Integer, java.security.PublicKey> memberPublicKeys = new HashMap<>();
+	//Para já, guardar aqui
+	private static Map<Integer, java.security.PublicKey> memberPublicKeys = new HashMap<>();
 
 	
 	//Inicialização da membership feita, agora começar
 	public static void main(String[] args) {
 		try {
+			
+			
 
 			LeaderNode leader = new LeaderNode(0, BASE_PORT);
 
@@ -52,6 +60,9 @@ public class DepChainApplication {
 			}
 			// Start leader services
 			startLeaderServices(leader, blockchainService);
+			
+			
+			
 
 		} catch (Exception e) {
 			System.err.println("Could not create the Membership");
