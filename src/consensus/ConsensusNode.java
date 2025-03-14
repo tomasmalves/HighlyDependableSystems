@@ -1,18 +1,23 @@
 package consensus;
 
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import communication.NetworkHandler;
 import config.MembershipConfig;
 import java.security.*;
+import communication.AuthenticatedPerfectLink;
 
+
+//DONE para fase 1 do projeto
+//Na fase 2 do projeto, adicionar writeSet e alterar value para <ts, val>
 public class ConsensusNode {
     private final int nodeId;
-    private final NetworkHandler networkHandler;
-    private final Map<Integer, String> proposedValues;
+    private final AuthenticatedPerfectLink apl;
+    private final String proposedValue = "";
+    
     private final PublicKey publicKey;
     private final PrivateKey privateKey;
-    private final MembershipConfig membershipConfig;
 
     /**
      * Creates a new ConsensusNode with the specified ID and port.
@@ -20,29 +25,21 @@ public class ConsensusNode {
      * @param nodeId The ID of this node
      * @param port   The port to listen on
      */
+    
     public ConsensusNode(int nodeId, int port) throws Exception {
-        this.nodeId = nodeId;
-        this.networkHandler = new NetworkHandler(port);
-        this.proposedValues = new HashMap<>();
-
-        // Generate a key pair for signing and verifying messages
+        
+    	this.nodeId = nodeId;
+    	
+    	//alterar na fase 2 do projeto
+        //this.proposedValues = new HashMap<>();
+        
+    	// Generate a key pair for signing and verifying messages
         KeyPair keyPair = generateKeyPair();
         this.publicKey = keyPair.getPublic();
         this.privateKey = keyPair.getPrivate();
+        
+        this.apl = new AuthenticatedPerfectLink(nodeId, port, publicKey.toString());
 
-        // Initialize membership configuration
-        this.membershipConfig = new MembershipConfig(nodeId);
-
-        System.out.println("ConsensusNode initialized with ID: " + nodeId);
-        System.out.println("Total nodes in system: " + membershipConfig.getNodeCount());
-        System.out.println("Leader node: " + membershipConfig.getLeaderInfo().getId());
-
-        // Log if this node is the leader
-        if (membershipConfig.isLeader()) {
-            System.out.println("This node is the LEADER");
-        } else {
-            System.out.println("This node is a FOLLOWER");
-        }
     }
 
     public int getNodeId() {
@@ -62,48 +59,33 @@ public class ConsensusNode {
     public PrivateKey getPrivateKey() {
         return privateKey;
     }
-
-    public void proposeValue(int epoch, String value) {
-        proposedValues.put(epoch, value);
-        System.out.println("Node " + nodeId + " proposed value for epoch " + epoch + ": " + value);
-    }
-
-    public void decideValue(int epoch) {
-        if (proposedValues.containsKey(epoch)) {
-            System.out.println("Node " + nodeId + " decided on value: " + proposedValues.get(epoch));
-        } else {
-            System.out.println("Node " + nodeId + " has no proposed value for epoch " + epoch);
-        }
-    }
-
-    public String getProposedValue(int epoch) {
-        return proposedValues.getOrDefault(epoch, null);
+    
+    /**
+     * Signs a message using the node's private key.
+     */
+    public String signMessage(String message) throws Exception {
+        Signature signature = Signature.getInstance("SHA256withRSA");
+        signature.initSign(privateKey);
+        signature.update(message.getBytes());
+        return Base64.getEncoder().encodeToString(signature.sign());
     }
 
     /**
-     * Get the membership configuration.
-     * 
-     * @return The membership configuration
+     * Verifies a message signature using the sender's public key.
      */
-    public MembershipConfig getMembershipConfig() {
-        return membershipConfig;
+    public boolean verifySignature(String message, String receivedSignature, PublicKey senderPublicKey) throws Exception {
+        Signature signature = Signature.getInstance("SHA256withRSA");
+        signature.initVerify(senderPublicKey);
+        signature.update(message.getBytes());
+        byte[] signatureBytes = Base64.getDecoder().decode(receivedSignature);
+        return signature.verify(signatureBytes);
     }
-
-    /**
-     * Get the network handler.
-     * 
-     * @return The network handler
-     */
-    public NetworkHandler getNetworkHandler() {
-        return networkHandler;
+    
+    public void sendMessage(int targetPort, String message) throws Exception {
+        apl.send(message, "localhost", targetPort);
     }
-
-    /**
-     * Start the consensus protocol.
-     */
-    public void start() {
-        System.out.println("Node " + nodeId + " starting consensus protocol...");
-        // Implementation of the consensus protocol will go here
-        // send to leader
+    
+    public String receiveMessage() throws Exception {
+        return apl.receive();
     }
 }

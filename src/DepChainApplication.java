@@ -35,15 +35,18 @@ public class DepChainApplication {
             // Initialize blockchain service
             BlockchainService blockchainService = new BlockchainService();
             MembershipConfig config = new MembershipConfig(nodeId);
+            
 
             // Create the appropriate node type based on ID
             if (nodeId == LEADER_ID) {
-                // Leader node (which is always correct according to project requirements)
+      
                 LeaderNode leaderNode = new LeaderNode(nodeId, port);
                 System.out.println("Initialized as LEADER node with ID: " + nodeId);
 
                 // Store leader's public key for verification by other nodes
                 memberPublicKeys.put(nodeId, leaderNode.getPublicKey());
+                System.out.println("The public key of the node + "+ nodeId + "is:" + memberPublicKeys.get(nodeId));
+
 
                 // Initialize connections to all other nodes
                 initializeLeaderConnections(leaderNode);
@@ -90,6 +93,10 @@ public class DepChainApplication {
             e.printStackTrace();
             System.exit(1);
         }
+    }
+    
+    private void initializeConnections(MembershipConfig membership) {
+    	for(int i = 0 ; i < membership. )
     }
 
     /**
