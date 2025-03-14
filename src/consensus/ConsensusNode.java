@@ -14,7 +14,7 @@ import communication.AuthenticatedPerfectLink;
 public class ConsensusNode {
     private final int nodeId;
     private final AuthenticatedPerfectLink apl;
-    private final String proposedValue = "";
+    private final Map<Integer, String> proposedValue;
     
     private final PublicKey publicKey;
     private final PrivateKey privateKey;
@@ -31,7 +31,7 @@ public class ConsensusNode {
     	this.nodeId = nodeId;
     	
     	//alterar na fase 2 do projeto
-        //this.proposedValues = new HashMap<>();
+        this.proposedValue = new HashMap<>();
         
     	// Generate a key pair for signing and verifying messages
         KeyPair keyPair = generateKeyPair();
@@ -44,6 +44,14 @@ public class ConsensusNode {
 
     public int getNodeId() {
         return nodeId;
+    }
+    
+    public int getPort() {
+    	return apl.getPort();
+    }
+    
+    public Map<Integer, String> getProposedValue(){
+    	return proposedValue;
     }
 
     private KeyPair generateKeyPair() throws Exception {

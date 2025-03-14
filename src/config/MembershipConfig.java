@@ -51,9 +51,7 @@ public class MembershipConfig {
      */
     private void initializeNodes(int nodeCount) throws Exception {
         for (int i = 1; i <= nodeCount; i++) {
-            // Generate key pair for this node
         	membership.add(new ConsensusNode(i, BASE_PORT + i));
-            
         }
     }
 
@@ -64,10 +62,10 @@ public class MembershipConfig {
     /**
      * Get all node information.
      * 
-     * @return A array of node members of the membership
+     * @return A consensus node from the membership list, based on the index
      */
-    public List<ConsensusNode> getAllNodeInfo() {
-        return membership;
+    public ConsensusNode getNode(int index) {
+        return membership.get(index);
     }
 
 }
