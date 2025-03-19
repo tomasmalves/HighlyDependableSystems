@@ -1,15 +1,12 @@
 package consensus;
 
 import java.util.Base64;
+
 import java.util.HashMap;
 import java.util.Map;
-import config.MembershipConfig;
 import java.security.*;
 import communication.AuthenticatedPerfectLink;
 
-
-//DONE para fase 1 do projeto
-//Na fase 2 do projeto, adicionar writeSet e alterar value para <ts, val>
 public class ConsensusNode {
     private final int nodeId;
     private final AuthenticatedPerfectLink apl;
@@ -25,20 +22,17 @@ public class ConsensusNode {
      * @param port   The port to listen on
      */
     
-    public ConsensusNode(int nodeId, int port) throws Exception {
+    public ConsensusNode(int nodeId, AuthenticatedPerfectLink apl) throws Exception {
         
     	this.nodeId = nodeId;
-    	
-    	//alterar na fase 2 do projeto
         this.writeSet = new HashMap<>();
-        
         
     	// Generate a key pair for signing and verifying messages
         KeyPair keyPair = generateKeyPair();
         this.publicKey = keyPair.getPublic();
         this.privateKey = keyPair.getPrivate();
         
-        this.apl = new AuthenticatedPerfectLink(nodeId, port, publicKey.toString());
+        this.apl = apl;;
 
     }
 
@@ -96,14 +90,6 @@ public class ConsensusNode {
         signature.update(message.getBytes());
         byte[] signatureBytes = Base64.getDecoder().decode(receivedSignature);
         return signature.verify(signatureBytes);
-    }
-    
-    public void sendMessage(int targetPort, String message) throws Exception {
-        apl.send(message, "localhost", targetPort);
-    }
-    
-    public String receiveMessage() throws Exception {
-        return apl.receive();
     }
     
 }

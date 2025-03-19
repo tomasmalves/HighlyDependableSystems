@@ -2,12 +2,14 @@ package consensus;
 
 import java.net.*;
 
+import communication.AuthenticatedPerfectLink;
+
 public class LeaderNode extends ConsensusNode {
 	
 	
 
-	public LeaderNode(int nodeId, int port) throws Exception {
-		super(nodeId, port);
+	public LeaderNode(int nodeId, AuthenticatedPerfectLink apl) throws Exception {
+		super(nodeId, apl);
 	}
 
 }

@@ -1,42 +1,38 @@
 package test;
 
-import communication.NetworkHandler;
-import consensus.ConsensusMessage;
-import java.net.InetAddress;
-import java.security.*;
+import java.net.InetSocketAddress;
+import java.util.HashMap;
+import java.util.Map;
+import communication.AuthenticatedPerfectLink;
 
 public class NetworkTest {
+    public static void main(String[] args) throws Exception {
+        // Secret keys for each node (in real systems, securely distribute them)
+        String secretKey = "superSecretKey123"; 
 
-	public static void main(String[] args) throws Exception {
-		// Generate key pairs for sender and receiver
-		KeyPair senderKeyPair = generateKeyPair();
-		KeyPair receiverKeyPair = generateKeyPair();
+        // Define all nodes and their IPs/ports
+        Map<Integer, InetSocketAddress> nodes = new HashMap<>();
+        nodes.put(2, new InetSocketAddress("localhost", 5002));
+        nodes.put(3, new InetSocketAddress("localhost", 5003));
+        nodes.put(4, new InetSocketAddress("localhost", 5004));
 
-		// Create NetworkHandlers
-		NetworkHandler sender = new NetworkHandler(5001);
-		NetworkHandler receiver = new NetworkHandler(5002);
+        // Initialize each node with the mapping of all other nodes
+        AuthenticatedPerfectLink node1 = new AuthenticatedPerfectLink(1, 5001, secretKey, nodes);
 
-		// Create a signed message
-		String testMessage = "Test Message";
-		ConsensusMessage signedMessage = new ConsensusMessage(ConsensusMessage.MessageType.PROPOSE, 1, testMessage, senderKeyPair.getPrivate());
+        // Example usage:
+        node1.send("Hello, Node 2!", 2);  // Send a message to Node 2
+        node1.send("Hey Node 3, how are you?", 3);  // Send a message to Node 3
 
-		// Send the signed message
-		sender.sendMessage(signedMessage.toString(), InetAddress.getByName("localhost"), 5002);
-
-		// Receive and verify the message
-		ConsensusMessage receivedMessage = receiver.receiveMessage(senderKeyPair.getPublic());
-
-		if (receivedMessage != null && testMessage.equals(receivedMessage.getValue())) {
-			System.out.println("✅ Test Passed: Message received and verified successfully.");
-		} else {
-			System.out.println("❌ Test Failed: Received an invalid or tampered message.");
-		}
-	}
-
-	// Helper function to generate an RSA key pair
-	private static KeyPair generateKeyPair() throws Exception {
-		KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
-		keyGen.initialize(2048);
-		return keyGen.generateKeyPair();
-	}
+        // Start listening for messages (in a separate thread ideally)
+        new Thread(() -> {
+            try {
+                while (true) {
+                    node1.receive();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
+    }
 }
+

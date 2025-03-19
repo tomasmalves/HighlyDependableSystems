@@ -35,8 +35,7 @@ public class DepChainApplication {
 
 			LeaderNode leader = new LeaderNode(0, BASE_PORT);
 
-			System.out.println(
-					"Starting DepChain with leader node " + leader.getNodeId() + " on port " + leader.getPort());
+			System.out.println("Starting DepChain with leader node " + leader.getNodeId() + " on port " + leader.getPort());
 
 			// Initialize blockchain service
 			BlockchainService blockchainService = new BlockchainService();

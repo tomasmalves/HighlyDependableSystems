@@ -4,6 +4,8 @@ import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Base64;
+import java.util.Map;
+
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -13,15 +15,17 @@ public class AuthenticatedPerfectLink {
     private final int port;
     private final DatagramSocket socket;
     private final Key hmacKey;
+    private final Map<Integer, InetSocketAddress> peers; // Store peers' node IDs mapped to their (nodeID, IP/port)
 
     
     //IMPLEMENTAR LIGAÇÃO/COMUNICAÇÃO ENTRE IP'S (INET ADDRESS)
     //IMPLEMENTAR A QUESTÃO DOS SECRET KEYS (A CLASSE SERVER VAI CRIAR UM FICHEIRO COM AS SECRET KEYS DE CADA PAR)
-    public AuthenticatedPerfectLink(int nodeId, int port, String secretKey) throws Exception {
+    public AuthenticatedPerfectLink(int nodeId, int port, String secretKey, Map<Integer, InetSocketAddress> peers) throws Exception {
         this.nodeId = nodeId;
         this.port = port;
         this.socket = new DatagramSocket(port);
         this.hmacKey = new SecretKeySpec(secretKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+        this.peers = peers;
     }
 
     private String computeHMAC(String message) throws Exception {
@@ -31,14 +35,21 @@ public class AuthenticatedPerfectLink {
         return Base64.getEncoder().encodeToString(hmacBytes);
     }
 
-    public void send(String message, String targetHost, int targetPort) throws Exception {
-        String hmac = computeHMAC(message);
+    public void send(String message, int targetNodeID) throws Exception {
+        
+    	if (!peers.containsKey(targetNodeID)) {
+            System.out.println("Node " + targetNodeID + " not found in peers list.");
+            return;
+        }
+    	
+    	InetSocketAddress targetAddress = peers.get(targetNodeID);
+    	String hmac = computeHMAC(message);
         String signedMessage = message + "|" + hmac;
         byte[] data = signedMessage.getBytes(StandardCharsets.UTF_8);
 
-        DatagramPacket packet = new DatagramPacket(data, data.length, InetAddress.getByName(targetHost), targetPort);
+        DatagramPacket packet = new DatagramPacket(data, data.length, targetAddress.getAddress(), targetAddress.getPort());
         socket.send(packet);
-        System.out.println("Node " + nodeId + " sent message to port " + targetPort);
+        System.out.println("Node " + nodeId + " sent message to port " + targetAddress.getPort());
     }
 
     public String receive() throws Exception {
