@@ -13,20 +13,6 @@
     },
     {
       "type": "java",
-      "name": "Client",
-      "request": "launch",
-      "mainClass": "client.Client",
-      "projectName": "HighlyDependableSystems_d407951b"
-    },
-    {
-      "type": "java",
-      "name": "Server",
-      "request": "launch",
-      "mainClass": "nodes.Server",
-      "projectName": "HighlyDependableSystems_d407951b"
-    },
-    {
-      "type": "java",
       "name": "ConsensusNode",
       "request": "launch",
       "mainClass": "nodes.ConsensusNode",
@@ -34,22 +20,9 @@
     },
     {
       "type": "java",
-      "name": "Current File",
-      "request": "launch",
-      "mainClass": "${file}"
-    },
-    {
-      "type": "java",
-      "name": "Client",
-      "request": "launch",
-      "mainClass": "Client",
-      "projectName": "HighlyDependableSystems_d407951b"
-    },
-    {
-      "type": "java",
       "name": "Server",
       "request": "launch",
-      "mainClass": "Server",
+      "mainClass": "nodes.Server",
       "projectName": "HighlyDependableSystems_d407951b"
     }
   ]

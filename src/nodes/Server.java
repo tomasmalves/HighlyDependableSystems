@@ -16,6 +16,10 @@ public class Server {
     public Server(DatagramSocket clientSocket, DatagramSocket leaderSocket) {
         this.clientSocket = clientSocket;
         this.leaderSocket = leaderSocket;
+        initProcesses();
+    }
+
+    private void initProcesses() {
     }
 
     public void receiveThenSend() {
