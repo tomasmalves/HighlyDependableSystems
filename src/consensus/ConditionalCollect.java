@@ -18,8 +18,8 @@ public class ConditionalCollect {
         this.apl = apl;
     }
 
-    public void inputMessage(int senderId, String message, String signature) {
-        apl.send("SEND|" + message + "|" + signature, leaderId);
+    public void insertState(int senderId, String message, String signature) {
+        messages.put( leaderId);
     }
 
     public void deliverMessage(int senderId, String message, String signature) {
