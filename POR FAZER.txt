@@ -1,1 +1,0 @@
-implementar secret key no authenticated perfect link
