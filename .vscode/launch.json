@@ -6,6 +6,20 @@
   "configurations": [
     {
       "type": "java",
+      "name": "ConsensusNode",
+      "request": "launch",
+      "mainClass": "consensus.ConsensusNode",
+      "projectName": "HighlyDependableSystems_d407951b"
+    },
+    {
+      "type": "java",
+      "name": "TestConsensus",
+      "request": "launch",
+      "mainClass": "consensus.TestConsensus",
+      "projectName": "HighlyDependableSystems_d407951b"
+    },
+    {
+      "type": "java",
       "name": "Client",
       "request": "launch",
       "mainClass": "nodes.Client",

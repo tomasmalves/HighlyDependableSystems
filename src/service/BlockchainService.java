@@ -5,8 +5,8 @@ import java.net.SocketException;
 import java.util.HashMap;
 import java.util.List;
 
-import nodes.Client;
-import nodes.ConsensusNode;
+import consensus.Client;
+import consensus.ConsensusNode;
 
 public class BlockchainService {
     // private final HashMap<Integer, ConsensusNode> processes;
