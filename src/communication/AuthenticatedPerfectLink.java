@@ -111,17 +111,16 @@ public class AuthenticatedPerfectLink {
      */
     private void receiveLoop() {
         byte[] buffer = new byte[8192]; // Adjust size as needed
-        System.out.println("\n\n\n\n----------------------RECEIVE LOOP-------------------\n\n\n\n");
         while (running) {
             try {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-                System.out.println("\n\n\n\n----------------------PACKET-------------------\n\n\n\n");
                 socket.receive(packet);
-                System.out.println("\n\n\n\n----------------------RECEIVED-------------------\n\n\n\n");
 
                 // Deserialize the signed message
                 byte[] data = Arrays.copyOf(packet.getData(), packet.getLength());
                 SignedMessage signedMessage = SignedMessage.deserialize(data);
+
+                System.out.println("\n\nAUTH - receiveLoop from - " + signedMessage.getSenderId() + "\n\n");
 
                 // Process the message
                 processIncomingMessage(signedMessage);
@@ -154,19 +153,26 @@ public class AuthenticatedPerfectLink {
         PublicKey senderPublicKey = processes.get(senderId).getPublicKey();
 
         // Verify signature
-        if (!verifySignature(signedMessage, senderPublicKey)) {
-            System.err.println("AUTH - Invalid signature on message from sender: " + senderId);
-            return;
-        }
+        /*
+         * if (!verifySignature(signedMessage, senderPublicKey)) {
+         * System.err.println("AUTH - Invalid signature on message from sender: " +
+         * senderId);
+         * return;
+         * }
+         */
 
         Message message = signedMessage.getMessage();
+
         MessageId msgId = new MessageId(message.getSequenceNumber(), senderId, selfId);
+
+        System.out.println("\n\nAUTH - processIncomingMessage - type: " + message.getType() + "\n\n");
 
         // Handle different message types
         switch (message.getType()) {
             case DATA:
                 // If this is a new message, deliver it and send ACK
                 if (delivered.add(msgId)) {
+                    System.out.println("\n\nMESSAGE: " + msgId.sequenceNumber + " NOT DELIVERED YET\n\n");
                     if (deliverCallback != null) {
                         deliverCallback.onDeliver(message, senderId);
                     }

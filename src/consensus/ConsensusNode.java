@@ -75,8 +75,6 @@ public class ConsensusNode implements DeliverCallback {
 		// Choose leader (for simplicity, process 1 is leader)
 		int leaderId = 1;
 
-		System.out.println("\n\n\n\nPROCESSES LIST: " + processList.size() + "\n\n\n\n");
-
 		// Initialize consensus
 		this.consensus = new ByzantineReadWriteConsensus(
 				nodeId, leaderId, processList, maxByzantine, apl, privateKey, publicKeys);
@@ -214,7 +212,7 @@ public class ConsensusNode implements DeliverCallback {
 						consensus.start();
 					} else {
 						System.out.println("Node " + nodeId + " participating in consensus");
-						consensus.init(null); // Non-leaders start with null value
+						consensus.init(this.tsValue.get(ts)); // Non-leaders start with null value
 						consensus.start();
 					}
 

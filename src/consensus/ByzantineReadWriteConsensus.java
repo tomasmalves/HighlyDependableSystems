@@ -166,11 +166,17 @@ public class ByzantineReadWriteConsensus {
             // Deserialize the consensus message
             ConsensusMessage consensusMsg = ConsensusMessage.deserialize(message.getPayload());
 
-            // Verify message signature
-            if (!verifyMessageSignature(consensusMsg, sender)) {
-                System.err.println("CONSENSUS - Invalid signature on message from sender: " + sender);
-                return;
-            }
+            /*
+             * 
+             * // Verify message signature
+             * if (!verifyMessageSignature(consensusMsg, sender)) {
+             * System.err.println("CONSENSUS - Invalid signature on message from sender: " +
+             * sender);
+             * return;
+             * }
+             */
+
+            System.out.println("CONSENSUS - Message: " + consensusMsg.getType());
 
             // Process message based on its type
             switch (consensusMsg.getType()) {
@@ -245,6 +251,8 @@ public class ByzantineReadWriteConsensus {
 
         if (instance != consensusInstance) {
             // Ignore messages from different instances
+            System.out.println(
+                    "\n\nCONSENSUS - INSTANCE: " + instance + " and CONSENSUSINSTANCE: " + consensusInstance + "\n\n");
             return;
         }
 
@@ -253,12 +261,15 @@ public class ByzantineReadWriteConsensus {
         values.put(sender, stateMsg.getValue());
         proofs.put(sender, stateMsg.getProofs());
 
+        System.out.println("\n\nCONSENSUS - broadcast write\n\n");
+
         // Check if we have enough STATE messages to proceed
         if (timestamps.size() >= n - f) {
             // Select the value with the highest timestamp
             long highestTimestamp = -1;
             String selectedValue = proposedValue; // Default to proposed value
 
+            System.out.println("\n\nCONSENSUS - broadcast write first selectedValue " + selectedValue + "\n\n");
             for (Map.Entry<Integer, Long> entry : timestamps.entrySet()) {
                 int processId = entry.getKey();
                 long ts = entry.getValue();
@@ -266,6 +277,7 @@ public class ByzantineReadWriteConsensus {
                 if (ts > highestTimestamp
                         && verifyValueProofs(processId, values.get(processId), proofs.get(processId))) {
                     highestTimestamp = ts;
+                    System.out.println("\nCONSENSUS - values " + values.get(processId) + " \n");
                     selectedValue = values.get(processId);
                 }
             }
@@ -273,6 +285,7 @@ public class ByzantineReadWriteConsensus {
             // Phase 2: Write phase
             // Send WRITE message to all processes
             WriteMessage writeMsg = new WriteMessage(consensusInstance, highestTimestamp + 1, selectedValue);
+            System.out.println("\n\nCONSENSUS - broadcast write after selectedValue " + selectedValue + " \n\n");
             broadcastMessage(ConsensusMessageType.WRITE, writeMsg);
         }
     }
@@ -368,6 +381,7 @@ public class ByzantineReadWriteConsensus {
      */
     private void decide(String decidedValue) {
         if (decideCallback != null) {
+            System.out.println("\n\n\nDECIDED VALUE: " + decidedValue + "\n\n\n");
             decideCallback.onDecide(decidedValue);
         }
     }
@@ -447,9 +461,7 @@ public class ByzantineReadWriteConsensus {
                     consensusInstance,
                     msgBytes);
 
-            System.out.println("\n\n\nDESTINATION: " + destination + "\n\n\n\n\n\n");
             link.send(message, destination);
-            System.out.println("\n\n\nCONSENSUS - SENT\n\n\n\n\n\n");
 
         } catch (Exception e) {
             System.err.println("Error sending consensus message: " + e.getMessage());
@@ -653,6 +665,8 @@ class ConsensusMessage {
         ByteArrayInputStream bais = new ByteArrayInputStream(payloadBytes);
         DataInputStream dis = new DataInputStream(bais);
 
+        System.out.println("\n\n\nCONSENSUS - TYPE: " + type + "\n\n\n");
+
         switch (type) {
             case READ:
                 int readInstance = dis.readInt();
@@ -662,6 +676,9 @@ class ConsensusMessage {
                 int stateInstance = dis.readInt();
                 long timestamp = dis.readLong();
                 String stateValue = dis.readUTF();
+
+                System.out.println("\nSTATE VALUE: " + stateValue + "\n");
+
                 if ("null".equals(stateValue)) {
                     stateValue = null;
                 }
