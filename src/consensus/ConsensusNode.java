@@ -33,7 +33,9 @@ public class ConsensusNode implements DeliverCallback {
 	private byte[] buffer = new byte[1024];
 	private AuthenticatedPerfectLink apl;
 	private Map<Integer, String> writeSet;
-	private Map<Long, String> tsValue;
+	private String value;
+	private int instance;
+	private List<Object> tsval = new ArrayList<Object>();
 	private final PublicKey publicKey;
 	private final PrivateKey privateKey;
 	private final ByzantineReadWriteConsensus consensus;
@@ -46,7 +48,7 @@ public class ConsensusNode implements DeliverCallback {
 		this.writeSet = new HashMap<>();
 		this.activeClients = new HashMap<>();
 		this.tsValue = new HashMap<>();
-		this.tsValue.put(System.currentTimeMillis(), "");
+		this.tsValue.put(0, "");
 		// Create the client-facing socket
 		this.clientSocket = new DatagramSocket(5000 + nodeId);
 
@@ -96,10 +98,12 @@ public class ConsensusNode implements DeliverCallback {
 			String clientId = parts[0];
 			String result = parts[1];
 
+			System.out.println("CLIENTID - " + clientId);
 			// Find the client info
 			ClientInfo clientInfo = activeClients.get(clientId);
 			if (clientInfo != null) {
 				// Report result back to the client
+				System.out.println("REPORTING - " + result);
 				reportToClient(result, clientInfo.getAddress(), clientInfo.getPort());
 				// Remove client from active list after handling
 				activeClients.remove(clientId);

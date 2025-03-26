@@ -104,7 +104,7 @@ public class Client {
                 System.out.println("Sent messages to all nodes");
 
                 // Set a timeout for receiving responses
-                datagramSocket.setSoTimeout(10000); // 10 seconds timeout
+                datagramSocket.setSoTimeout(15000); // 15 seconds timeout
 
                 // Try to receive responses from each node
                 try {

@@ -36,7 +36,7 @@ public class ByzantineReadWriteConsensus {
     private final int n; // Total number of processes
     private final int f; // Maximum number of Byzantine processes
     private final AuthenticatedPerfectLink link;
-    private final ConditionalCollect collector;
+    private final Map<Integer, StateMessage> collected;
     private final PrivateKey privateKey;
     private final Map<Integer, PublicKey> publicKeys;
     private final ExecutorService executor;
@@ -47,13 +47,11 @@ public class ByzantineReadWriteConsensus {
     private boolean running;
 
     // State for non-leader processes
-    private long timestamp;
+    private int instance;
     private String value;
     private List<byte[]> valueProofs; // Proofs of accepted values
 
     // State for leader process
-    private Map<Integer, Long> timestamps;
-    private Map<Integer, String> values;
     private Map<Integer, List<byte[]>> proofs;
     private Set<Integer> acknowledged;
 
@@ -83,18 +81,15 @@ public class ByzantineReadWriteConsensus {
         this.n = processes.size();
         this.f = maxByzantine;
         this.link = link;
-        this.collector = new ConditionalCollect(selfId, processes, maxByzantine, link);
+        this.collected = new HashMap<>();
         this.privateKey = privateKey;
         this.publicKeys = publicKeys;
         this.executor = Executors.newSingleThreadExecutor();
 
         this.consensusInstance = 0;
-        this.timestamp = 0;
         this.value = null;
         this.valueProofs = new ArrayList<>();
 
-        this.timestamps = new HashMap<>();
-        this.values = new HashMap<>();
         this.proofs = new HashMap<>();
         this.acknowledged = new HashSet<>();
 
@@ -147,7 +142,7 @@ public class ByzantineReadWriteConsensus {
         }
 
         consensusInstance++;
-        timestamps.clear();
+        collected.clear();
         values.clear();
         proofs.clear();
         acknowledged.clear();
@@ -257,24 +252,63 @@ public class ByzantineReadWriteConsensus {
         }
 
         // Store the state from this process
-        timestamps.put(sender, stateMsg.getTimestamp());
-        values.put(sender, stateMsg.getValue());
+        collected.put(sender, stateMsg);
         proofs.put(sender, stateMsg.getProofs());
 
         System.out.println("\n\nCONSENSUS - broadcast write\n\n");
 
         // Check if we have enough STATE messages to proceed
-        if (timestamps.size() >= n - f) {
+        if (collected.size() >= n - f) {
+
+            // Phase 1: READ phase
+            // Send COLLECTED message to all processes
+            CollectedMessage collectedMsg = new CollectedMessage(consensusInstance, highestTimestamp + 1,
+                    selectedValue);
+            System.out.println("\n\nCONSENSUS - broadcast write after selectedValue " + selectedValue + " \n\n");
+            broadcastMessage(ConsensusMessageType.WRITE, writeMsg);
+
             // Select the value with the highest timestamp
-            long highestTimestamp = -1;
+            int highestInstance = -1;
             String selectedValue = proposedValue; // Default to proposed value
 
             System.out.println("\n\nCONSENSUS - broadcast write first selectedValue " + selectedValue + "\n\n");
-            for (Map.Entry<Integer, Long> entry : timestamps.entrySet()) {
+            for (Map.Entry<Integer, StateMessage> entry : collected.entrySet()) {
                 int processId = entry.getKey();
-                long ts = entry.getValue();
+                StateMessage stateMessage = entry.getValue();
 
-                if (ts > highestTimestamp
+                if (stateMessage.getInstance() > highestTimestamp
+                        && verifyValueProofs(processId, values.get(processId), proofs.get(processId))) {
+                    highestTimestamp = ts;
+                    System.out.println("\nCONSENSUS - values " + values.get(processId) + " \n");
+                    selectedValue = values.get(processId);
+                }
+            }
+
+            // Phase 2: Write phase
+            // Send WRITE message to all processes
+            WriteMessage writeMsg = new WriteMessage(consensusInstance, highestTimestamp + 1, selectedValue);
+            System.out.println("\n\nCONSENSUS - broadcast write after selectedValue " + selectedValue + " \n\n");
+            broadcastMessage(ConsensusMessageType.WRITE, writeMsg);
+        }
+    }
+
+    /**
+     * Process a WRITE message (non-leader)
+     */
+    private void processCollectedMessage(ConsensusMessage message, int sender) {
+        // Check if we have enough STATE messages to proceed
+        if (collected.size() >= n - f) {
+
+            // Select the value with the highest timestamp
+            int highestInstance = -1;
+            String selectedValue = proposedValue; // Default to proposed value
+
+            System.out.println("\n\nCONSENSUS - broadcast write first selectedValue " + selectedValue + "\n\n");
+            for (Map.Entry<Integer, StateMessage> entry : collected.entrySet()) {
+                int processId = entry.getKey();
+                StateMessage stateMessage = entry.getValue();
+
+                if (stateMessage.getInstance() > highestTimestamp
                         && verifyValueProofs(processId, values.get(processId), proofs.get(processId))) {
                     highestTimestamp = ts;
                     System.out.println("\nCONSENSUS - values " + values.get(processId) + " \n");
@@ -304,6 +338,8 @@ public class ByzantineReadWriteConsensus {
 
         if (instance != consensusInstance) {
             // Ignore messages from different instances
+            System.out.println("\n\nCONSENSUS - processWrite - instance - " + instance + " consensusinstance - "
+                    + consensusInstance + " \n\n");
             return;
         }
 
@@ -314,6 +350,8 @@ public class ByzantineReadWriteConsensus {
         // Create proof for the new value
         byte[] proof = createValueProof();
         valueProofs.add(proof);
+
+        System.out.println("\n\nCONSENSUS - processwrite - sending value " + value + " to leader\n\n");
 
         // Send ACK message to the leader
         AckMessage ackMsg = new AckMessage(instance, timestamp, value);
@@ -750,13 +788,13 @@ class ReadMessage {
  */
 class StateMessage {
     private final int instance;
-    private final long timestamp;
     private final String value;
+    private final Map<Integer, String> writeSet;
     private final List<byte[]> proofs;
 
-    public StateMessage(int instance, long timestamp, String value, List<byte[]> proofs) {
+    public StateMessage(int instance, String value, List<byte[]> proofs, Map<Integer, String> writeSet) {
+        this.writeSet = writeSet;
         this.instance = instance;
-        this.timestamp = timestamp;
         this.value = value;
         this.proofs = proofs;
     }
@@ -765,8 +803,8 @@ class StateMessage {
         return instance;
     }
 
-    public long getTimestamp() {
-        return timestamp;
+    public Map<Integer, String> getWriteSet() {
+        return writeSet;
     }
 
     public String getValue() {

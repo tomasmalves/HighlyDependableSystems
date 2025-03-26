@@ -165,19 +165,21 @@ public class AuthenticatedPerfectLink {
 
         MessageId msgId = new MessageId(message.getSequenceNumber(), senderId, selfId);
 
-        System.out.println("\n\nAUTH - processIncomingMessage - type: " + message.getType() + "\n\n");
+        System.out.println("\n\nAUTH - processIncomingMessage - type: " + message.getType() + " with sequencenumber: "
+                + msgId.sequenceNumber + "\n\n");
 
         // Handle different message types
         switch (message.getType()) {
             case DATA:
+
                 // If this is a new message, deliver it and send ACK
                 if (delivered.add(msgId)) {
-                    System.out.println("\n\nMESSAGE: " + msgId.sequenceNumber + " NOT DELIVERED YET\n\n");
+                    System.out.println("\n\nMESSAGE: " + msgId.sequenceNumber +
+                            " NOT DELIVERED YET\n\n");
                     if (deliverCallback != null) {
-                        deliverCallback.onDeliver(message, senderId);
                     }
                 }
-
+                deliverCallback.onDeliver(message, senderId);
                 // Always send ACK, even for duplicates
                 sendAcknowledgment(message, senderId);
                 break;
@@ -202,7 +204,6 @@ public class AuthenticatedPerfectLink {
                 receivedMsg.getSequenceNumber(), // Set as ackSequenceNumber
                 null // No payload for ACK
         );
-
         SignedMessage signedAck = signMessage(ackMessage);
         sendSignedMessage(signedAck, destination);
     }
