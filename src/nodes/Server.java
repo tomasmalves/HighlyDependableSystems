@@ -16,6 +16,13 @@ public class Server {
     public Server(DatagramSocket clientSocket, DatagramSocket leaderSocket) {
         this.clientSocket = clientSocket;
         this.leaderSocket = leaderSocket;
+<<<<<<< HEAD
+=======
+        initProcesses();
+    }
+
+    private void initProcesses() {
+>>>>>>> 8601c7e31b0957168b8816505a216341908d9d7b
     }
 
     public void receiveThenSend() {
