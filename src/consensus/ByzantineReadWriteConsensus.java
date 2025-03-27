@@ -47,7 +47,7 @@ public class ByzantineReadWriteConsensus {
     private boolean running;
 
     // State for non-leader processes
-    private int instance;
+    private int timestamp;
     private String value;
     private List<byte[]> valueProofs; // Proofs of accepted values
 
@@ -87,6 +87,7 @@ public class ByzantineReadWriteConsensus {
         this.executor = Executors.newSingleThreadExecutor();
 
         this.consensusInstance = 0;
+        this.timestamp = 0;
         this.value = null;
         this.valueProofs = new ArrayList<>();
 
@@ -143,7 +144,6 @@ public class ByzantineReadWriteConsensus {
 
         consensusInstance++;
         collected.clear();
-        values.clear();
         proofs.clear();
         acknowledged.clear();
 
@@ -262,66 +262,53 @@ public class ByzantineReadWriteConsensus {
 
             // Phase 1: READ phase
             // Send COLLECTED message to all processes
-            CollectedMessage collectedMsg = new CollectedMessage(consensusInstance, highestTimestamp + 1,
-                    selectedValue);
-            System.out.println("\n\nCONSENSUS - broadcast write after selectedValue " + selectedValue + " \n\n");
-            broadcastMessage(ConsensusMessageType.WRITE, writeMsg);
-
-            // Select the value with the highest timestamp
-            int highestInstance = -1;
-            String selectedValue = proposedValue; // Default to proposed value
-
-            System.out.println("\n\nCONSENSUS - broadcast write first selectedValue " + selectedValue + "\n\n");
-            for (Map.Entry<Integer, StateMessage> entry : collected.entrySet()) {
-                int processId = entry.getKey();
-                StateMessage stateMessage = entry.getValue();
-
-                if (stateMessage.getInstance() > highestTimestamp
-                        && verifyValueProofs(processId, values.get(processId), proofs.get(processId))) {
-                    highestTimestamp = ts;
-                    System.out.println("\nCONSENSUS - values " + values.get(processId) + " \n");
-                    selectedValue = values.get(processId);
-                }
-            }
-
-            // Phase 2: Write phase
-            // Send WRITE message to all processes
-            WriteMessage writeMsg = new WriteMessage(consensusInstance, highestTimestamp + 1, selectedValue);
-            System.out.println("\n\nCONSENSUS - broadcast write after selectedValue " + selectedValue + " \n\n");
-            broadcastMessage(ConsensusMessageType.WRITE, writeMsg);
+            CollectMessage collectMsg = new CollectMessage(consensusInstance, collected);
+            System.out.println("\n\nCONSENSUS - broadcast collect\n\n");
+            broadcastMessage(ConsensusMessageType.COLLECT, collectMsg);
         }
     }
 
     /**
-     * Process a WRITE message (non-leader)
+     * Process a COLLECT message (non-leader)
      */
     private void processCollectedMessage(ConsensusMessage message, int sender) {
-        // Check if we have enough STATE messages to proceed
-        if (collected.size() >= n - f) {
 
-            // Select the value with the highest timestamp
-            int highestInstance = -1;
-            String selectedValue = proposedValue; // Default to proposed value
-
-            System.out.println("\n\nCONSENSUS - broadcast write first selectedValue " + selectedValue + "\n\n");
-            for (Map.Entry<Integer, StateMessage> entry : collected.entrySet()) {
-                int processId = entry.getKey();
-                StateMessage stateMessage = entry.getValue();
-
-                if (stateMessage.getInstance() > highestTimestamp
-                        && verifyValueProofs(processId, values.get(processId), proofs.get(processId))) {
-                    highestTimestamp = ts;
-                    System.out.println("\nCONSENSUS - values " + values.get(processId) + " \n");
-                    selectedValue = values.get(processId);
-                }
-            }
-
-            // Phase 2: Write phase
-            // Send WRITE message to all processes
-            WriteMessage writeMsg = new WriteMessage(consensusInstance, highestTimestamp + 1, selectedValue);
-            System.out.println("\n\nCONSENSUS - broadcast write after selectedValue " + selectedValue + " \n\n");
-            broadcastMessage(ConsensusMessageType.WRITE, writeMsg);
+        if (sender != leaderId) {
+            System.err.println("Received COLLECT message from non-leader: " + sender);
+            return;
         }
+
+        CollectMessage collectMsg = (CollectMessage) message.getPayload();
+        int instance = collectMsg.getInstance();
+
+        if (instance != consensusInstance) {
+            // Ignore messages from different instances
+            System.out.println("\n\nCONSENSUS - processWrite - instance - " + instance + " consensusinstance - "
+                    + consensusInstance + " \n\n");
+            return;
+        }
+
+        // Select the value with the highest instance
+        int highestInstance = -1;
+        String selectedValue = proposedValue; // Default to proposed value
+
+        for (Map.Entry<Integer, StateMessage> entry : collected.entrySet()) {
+            int processId = entry.getKey();
+            StateMessage stateMessage = entry.getValue();
+
+            if (stateMessage.getInstance() > highestInstance) {
+                highestInstance = instance;
+                System.out.println("\nCONSENSUS - highestInstance " + highestInstance + " \n");
+                selectedValue = stateMessage.getValue();
+            }
+        }
+
+        // Phase 2: Write phase
+        // Send WRITE message to all processes
+        WriteMessage writeMsg = new WriteMessage(instance, highestInstance + 1, selectedValue);
+        System.out.println("\n\nCONSENSUS - broadcast write after selectedValue " + selectedValue + " \n\n");
+        broadcastMessage(ConsensusMessageType.WRITE, writeMsg);
+
     }
 
     /**
@@ -344,7 +331,7 @@ public class ByzantineReadWriteConsensus {
         }
 
         // Update local state
-        timestamp = writeMsg.getTimestamp();
+        instance = writeMsg.getInstance();
         value = writeMsg.getValue();
 
         // Create proof for the new value
@@ -529,6 +516,7 @@ public class ByzantineReadWriteConsensus {
 enum ConsensusMessageType {
     READ,
     STATE,
+    COLLECT,
     WRITE,
     ACK,
     DECIDE

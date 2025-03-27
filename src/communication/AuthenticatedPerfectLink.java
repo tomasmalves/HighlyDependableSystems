@@ -171,12 +171,12 @@ public class AuthenticatedPerfectLink {
         // Handle different message types
         switch (message.getType()) {
             case DATA:
-
                 // If this is a new message, deliver it and send ACK
                 if (delivered.add(msgId)) {
                     System.out.println("\n\nMESSAGE: " + msgId.sequenceNumber +
                             " NOT DELIVERED YET\n\n");
                     if (deliverCallback != null) {
+                        deliverCallback.onDeliver(message, senderId);
                     }
                 }
                 deliverCallback.onDeliver(message, senderId);

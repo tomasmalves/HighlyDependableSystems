@@ -35,7 +35,6 @@ public class ConsensusNode implements DeliverCallback {
 	private Map<Integer, String> writeSet;
 	private String value;
 	private int instance;
-	private List<Object> tsval = new ArrayList<Object>();
 	private final PublicKey publicKey;
 	private final PrivateKey privateKey;
 	private final ByzantineReadWriteConsensus consensus;
@@ -47,8 +46,8 @@ public class ConsensusNode implements DeliverCallback {
 		this.inetAddress = inetAddress;
 		this.writeSet = new HashMap<>();
 		this.activeClients = new HashMap<>();
-		this.tsValue = new HashMap<>();
-		this.tsValue.put(0, "");
+		this.value = "";
+		this.instance = 0;
 		// Create the client-facing socket
 		this.clientSocket = new DatagramSocket(5000 + nodeId);
 
