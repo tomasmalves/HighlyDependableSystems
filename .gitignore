@@ -1,0 +1,3 @@
+# Ignore class folder and vscode extensions
+class/
+.vscode/
