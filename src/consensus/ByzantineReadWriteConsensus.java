@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -40,6 +41,8 @@ public class ByzantineReadWriteConsensus {
     private final PrivateKey privateKey;
     private final Map<Integer, PublicKey> publicKeys;
     private final ExecutorService executor;
+    private Map<Long, String> writeSet;
+    private List<Map<Long, String>> writesReceived;
 
     private String proposedValue;
     private int consensusInstance;
@@ -85,6 +88,7 @@ public class ByzantineReadWriteConsensus {
         this.privateKey = privateKey;
         this.publicKeys = publicKeys;
         this.executor = Executors.newSingleThreadExecutor();
+        this.writesReceived = new ArrayList<>();
 
         this.consensusInstance = 0;
         this.timestamp = 0;
@@ -100,9 +104,11 @@ public class ByzantineReadWriteConsensus {
         link.registerDeliverCallback(this::onMessageDeliver);
     }
 
-    public void init(String initialValue) {
+    public void init(String initialValue, Map<Long, String> writeSet) {
         this.proposedValue = initialValue;
         this.value = initialValue;
+        if (writeSet == null)
+            this.writeSet = writeSet;
     }
 
     public void propose(String value) {
@@ -183,6 +189,9 @@ public class ByzantineReadWriteConsensus {
                     processStateMessage(consensusMsg, sender);
                     break;
 
+                case COLLECT:
+                    processCollectedMessage(consensusMsg, sender);
+
                 case WRITE:
                     processWriteMessage(consensusMsg, sender);
                     break;
@@ -228,7 +237,7 @@ public class ByzantineReadWriteConsensus {
         valueProofs.add(proof);
 
         // Send STATE message to the leader
-        StateMessage stateMsg = new StateMessage(instance, timestamp, value, valueProofs);
+        StateMessage stateMsg = new StateMessage(instance, timestamp, value, valueProofs, writeSet);
         sendMessage(ConsensusMessageType.STATE, stateMsg, leaderId);
     }
 
@@ -265,84 +274,163 @@ public class ByzantineReadWriteConsensus {
             CollectMessage collectMsg = new CollectMessage(consensusInstance, collected);
             System.out.println("\n\nCONSENSUS - broadcast collect\n\n");
             broadcastMessage(ConsensusMessageType.COLLECT, collectMsg);
+            processCollectedMessage(null, selfId);
         }
     }
 
     /**
-     * Process a COLLECT message (non-leader)
+     * Process a COLLECT message
      */
     private void processCollectedMessage(ConsensusMessage message, int sender) {
 
-        if (sender != leaderId) {
-            System.err.println("Received COLLECT message from non-leader: " + sender);
-            return;
+        CollectMessage collectMsg;
+
+        if (selfId != leaderId) {
+            // Only the leader should process COLLECT messages
+            collectMsg = (CollectMessage) message.getPayload();
+        } else {
+            collectMsg = new CollectMessage(selfId, collected);
         }
 
-        CollectMessage collectMsg = (CollectMessage) message.getPayload();
         int instance = collectMsg.getInstance();
 
         if (instance != consensusInstance) {
-            // Ignore messages from different instances
-            System.out.println("\n\nCONSENSUS - processWrite - instance - " + instance + " consensusinstance - "
-                    + consensusInstance + " \n\n");
+            System.out.println("CONSENSUS - Received COLLECT for different instance: " +
+                    instance + " (current: " + consensusInstance + ")");
             return;
         }
 
-        // Select the value with the highest instance
-        int highestInstance = -1;
-        String selectedValue = proposedValue; // Default to proposed value
+        // Analyze collected state messages to determine the most appropriate value
+        Map<Integer, StateMessage> collectedStates = collectMsg.getCollected();
 
-        for (Map.Entry<Integer, StateMessage> entry : collected.entrySet()) {
-            int processId = entry.getKey();
-            StateMessage stateMessage = entry.getValue();
+        // Track value occurrences and timestamps
+        Map<String, Integer> valueOccurrences = new HashMap<>();
+        Map<Long, Integer> timestampOccurrences = new HashMap<>();
 
-            if (stateMessage.getInstance() > highestInstance) {
-                highestInstance = instance;
-                System.out.println("\nCONSENSUS - highestInstance " + highestInstance + " \n");
-                selectedValue = stateMessage.getValue();
+        long maxTimestamp = -1;
+        String mostRecentValue = null;
+
+        // Analyze collected states
+        for (StateMessage stateMsg : collectedStates.values()) {
+            String value = stateMsg.getValue();
+            long timestamp = stateMsg.getTimestamp();
+
+            // Count value occurrences
+            if (value != null) {
+                valueOccurrences.put(value, valueOccurrences.getOrDefault(value, 0) + 1);
+            }
+
+            // Track timestamp occurrences
+            timestampOccurrences.put(timestamp, timestampOccurrences.getOrDefault(timestamp, 0) + 1);
+
+            // Find most recent value
+            if (timestamp > maxTimestamp) {
+                maxTimestamp = timestamp;
+                mostRecentValue = value;
             }
         }
 
-        // Phase 2: Write phase
-        // Send WRITE message to all processes
-        WriteMessage writeMsg = new WriteMessage(instance, highestInstance + 1, selectedValue);
-        System.out.println("\n\nCONSENSUS - broadcast write after selectedValue " + selectedValue + " \n\n");
-        broadcastMessage(ConsensusMessageType.WRITE, writeMsg);
+        // Determine the value to write
+        String writeValue = proposedValue; // Default to proposed value
 
+        // Find a value that appears in more than f processes
+        for (Map.Entry<String, Integer> entry : valueOccurrences.entrySet()) {
+            if (entry.getValue() > f) {
+                writeValue = entry.getKey();
+                break;
+            }
+        }
+
+        // If no value appears in more than f processes, use the most recent value
+        if (writeValue == null && mostRecentValue != null) {
+            writeValue = mostRecentValue;
+        }
+
+        // Determine the timestamp for the write
+        long writeTimestamp = maxTimestamp + 1;
+
+        // Phase 2: Write phase
+        WriteMessage writeMsg = new WriteMessage(instance, writeTimestamp, writeValue);
+        System.out.println("CONSENSUS - Broadcasting WRITE with value: " + writeValue);
+        broadcastMessage(ConsensusMessageType.WRITE, writeMsg);
     }
 
     /**
-     * Process a WRITE message (non-leader)
+     * Process a WRITE message
      */
     private void processWriteMessage(ConsensusMessage message, int sender) {
-        if (sender != leaderId) {
-            System.err.println("Received WRITE message from non-leader: " + sender);
-            return;
-        }
-
         WriteMessage writeMsg = (WriteMessage) message.getPayload();
         int instance = writeMsg.getInstance();
 
+        // Check if the message is for the current consensus instance
         if (instance != consensusInstance) {
-            // Ignore messages from different instances
-            System.out.println("\n\nCONSENSUS - processWrite - instance - " + instance + " consensusinstance - "
-                    + consensusInstance + " \n\n");
+            System.out.println("\n\nCONSENSUS - processWrite - Ignoring message from different instance. " +
+                    "Current: " + consensusInstance + ", Received: " + instance + " \n\n");
             return;
         }
 
-        // Update local state
-        instance = writeMsg.getInstance();
-        value = writeMsg.getValue();
+        // Create a map for this write message
+        Map<Long, String> writeMap = new HashMap<>();
+        writeMap.put(writeMsg.getTimestamp(), writeMsg.getValue());
 
-        // Create proof for the new value
-        byte[] proof = createValueProof();
-        valueProofs.add(proof);
+        // Add the map to writesReceived list
+        writesReceived.add(writeMap);
 
-        System.out.println("\n\nCONSENSUS - processwrite - sending value " + value + " to leader\n\n");
+        // Check if we have received enough writes and they are consistent
+        if (writesReceived.size() > n - f) {
+            // Verify that all maps in writesReceived have the same pairs
+            boolean isConsistent = areMapsConsistent(writesReceived);
 
-        // Send ACK message to the leader
-        AckMessage ackMsg = new AckMessage(instance, timestamp, value);
-        sendMessage(ConsensusMessageType.ACK, ackMsg, leaderId);
+            if (isConsistent) {
+                // Get the consistent value from the first map
+                Map<Long, String> firstMap = writesReceived.get(0);
+                Long timestamp = firstMap.keySet().iterator().next();
+                value = firstMap.get(timestamp);
+
+                // Create proof for the new value
+                byte[] proof = createValueProof();
+                valueProofs.add(proof);
+
+                System.out.println("\n\nCONSENSUS - processWrite - Sending value " + value + " to leader\n\n");
+
+                // Send ACK message to the leader
+                AckMessage ackMsg = new AckMessage(instance, timestamp, value);
+                sendMessage(ConsensusMessageType.ACK, ackMsg, leaderId);
+            } else {
+                // Handle inconsistent writes
+                System.out.println("\n\nCONSENSUS - processWrite - Inconsistent writes received\n\n");
+            }
+        }
+    }
+
+    // Helper method to check consistency of maps
+    private boolean areMapsConsistent(List<Map<Long, String>> maps) {
+        if (maps.isEmpty()) {
+            return false;
+        }
+
+        // Get the first map to compare against
+        Map<Long, String> firstMap = maps.get(0);
+
+        // Ensure all maps have exactly one entry
+        for (Map<Long, String> map : maps) {
+            if (map.size() != 1) {
+                return false;
+            }
+        }
+
+        // Get the value from the first map
+        String firstValue = firstMap.values().iterator().next();
+
+        // Check that all maps have the same value
+        for (Map<Long, String> map : maps) {
+            String currentValue = map.values().iterator().next();
+            if (!firstValue.equals(currentValue)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -362,14 +450,22 @@ public class ByzantineReadWriteConsensus {
             return;
         }
 
-        // Verify the ACK
-        if (ackMsg.getTimestamp() == timestamps.getOrDefault(sender, -1L) + 1 &&
-                ackMsg.getValue().equals(value)) {
+        // Safely retrieve the collected state message
+        StateMessage senderState = collected.get(sender);
+        if (senderState == null) {
+            System.err.println("No collected state found for sender: " + sender);
+            return;
+        }
 
+        // More relaxed timestamp and value verification
+        boolean isValidTimestamp = ackMsg.getTimestamp() >= senderState.getTimestamp();
+        boolean isValidValue = Objects.equals(ackMsg.getValue(), value);
+
+        if (isValidTimestamp && isValidValue) {
             acknowledged.add(sender);
 
             // Check if we have enough ACKs to decide
-            if (acknowledged.size() >= n - f) {
+            if (acknowledged.size() > n - f) {
                 // Send DECIDE message to all processes
                 DecideMessage decideMsg = new DecideMessage(consensusInstance, value);
                 broadcastMessage(ConsensusMessageType.DECIDE, decideMsg);
@@ -377,6 +473,10 @@ public class ByzantineReadWriteConsensus {
                 // Also deliver locally
                 decide(value);
             }
+        } else {
+            System.err.println("Invalid ACK from sender: " + sender +
+                    ", timestamp valid: " + isValidTimestamp +
+                    ", value valid: " + isValidValue);
         }
     }
 
@@ -562,7 +662,7 @@ class ConsensusMessage {
             // Write message type
             dos.writeInt(type.ordinal());
 
-            // Write payload type and data
+            // Write payload content
             byte[] payloadBytes = serializePayload();
             dos.writeInt(payloadBytes.length);
             dos.write(payloadBytes);
@@ -581,36 +681,102 @@ class ConsensusMessage {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
 
-        if (payload instanceof ReadMessage) {
-            ReadMessage readMsg = (ReadMessage) payload;
+        if (payload instanceof ReadMessage readMsg) {
             dos.writeInt(readMsg.getInstance());
-        } else if (payload instanceof StateMessage) {
-            StateMessage stateMsg = (StateMessage) payload;
+        } else if (payload instanceof StateMessage stateMsg) {
             dos.writeInt(stateMsg.getInstance());
             dos.writeLong(stateMsg.getTimestamp());
-            dos.writeUTF(stateMsg.getValue() != null ? stateMsg.getValue() : "null");
 
-            // Write proofs
+            // Handle null value
+            boolean hasValue = stateMsg.getValue() != null;
+            dos.writeBoolean(hasValue);
+            if (hasValue) {
+                dos.writeUTF(stateMsg.getValue());
+            }
+
+            // Serialize proofs
             List<byte[]> proofs = stateMsg.getProofs();
             dos.writeInt(proofs.size());
             for (byte[] proof : proofs) {
                 dos.writeInt(proof.length);
                 dos.write(proof);
             }
-        } else if (payload instanceof WriteMessage) {
-            WriteMessage writeMsg = (WriteMessage) payload;
+
+            // Serialize write set
+            Map<Long, String> writeSet = stateMsg.getWriteSet();
+            dos.writeInt(writeSet.size());
+            for (Map.Entry<Long, String> entry : writeSet.entrySet()) {
+                dos.writeLong(entry.getKey());
+                dos.writeUTF(entry.getValue());
+            }
+        } else if (payload instanceof WriteMessage writeMsg) {
             dos.writeInt(writeMsg.getInstance());
             dos.writeLong(writeMsg.getTimestamp());
-            dos.writeUTF(writeMsg.getValue() != null ? writeMsg.getValue() : "null");
-        } else if (payload instanceof AckMessage) {
-            AckMessage ackMsg = (AckMessage) payload;
+
+            // Handle null value
+            boolean hasValue = writeMsg.getValue() != null;
+            dos.writeBoolean(hasValue);
+            if (hasValue) {
+                dos.writeUTF(writeMsg.getValue());
+            }
+        } else if (payload instanceof AckMessage ackMsg) {
             dos.writeInt(ackMsg.getInstance());
             dos.writeLong(ackMsg.getTimestamp());
-            dos.writeUTF(ackMsg.getValue() != null ? ackMsg.getValue() : "null");
-        } else if (payload instanceof DecideMessage) {
-            DecideMessage decideMsg = (DecideMessage) payload;
+
+            // Handle null value
+            boolean hasValue = ackMsg.getValue() != null;
+            dos.writeBoolean(hasValue);
+            if (hasValue) {
+                dos.writeUTF(ackMsg.getValue());
+            }
+        } else if (payload instanceof DecideMessage decideMsg) {
             dos.writeInt(decideMsg.getInstance());
-            dos.writeUTF(decideMsg.getValue() != null ? decideMsg.getValue() : "null");
+
+            // Handle null value
+            boolean hasValue = decideMsg.getValue() != null;
+            dos.writeBoolean(hasValue);
+            if (hasValue) {
+                dos.writeUTF(decideMsg.getValue());
+            }
+        } else if (payload instanceof CollectMessage collectMsg) {
+            dos.writeInt(collectMsg.getInstance());
+
+            // Serialize collected state messages
+            Map<Integer, StateMessage> collected = collectMsg.getCollected();
+            dos.writeInt(collected.size());
+
+            for (Map.Entry<Integer, StateMessage> entry : collected.entrySet()) {
+                // Write process ID
+                dos.writeInt(entry.getKey());
+
+                // Serialize StateMessage
+                StateMessage stateMsg = entry.getValue();
+                dos.writeInt(stateMsg.getInstance());
+                dos.writeLong(stateMsg.getTimestamp());
+
+                // Handle null value
+                boolean hasValue = stateMsg.getValue() != null;
+                dos.writeBoolean(hasValue);
+                if (hasValue) {
+                    dos.writeUTF(stateMsg.getValue());
+                }
+
+                // Serialize proofs
+                List<byte[]> proofs = stateMsg.getProofs();
+                dos.writeInt(proofs.size());
+                for (byte[] proof : proofs) {
+                    dos.writeInt(proof.length);
+                    dos.write(proof);
+                }
+
+                // Serialize write set
+                Map<Long, String> writeSet = stateMsg.getWriteSet();
+                dos.writeInt(writeSet.size());
+                for (Map.Entry<Long, String> wsEntry : writeSet.entrySet()) {
+                    dos.writeLong(wsEntry.getKey());
+                    dos.writeUTF(wsEntry.getValue());
+                }
+            }
         }
 
         dos.flush();
@@ -691,27 +857,23 @@ class ConsensusMessage {
         ByteArrayInputStream bais = new ByteArrayInputStream(payloadBytes);
         DataInputStream dis = new DataInputStream(bais);
 
-        System.out.println("\n\n\nCONSENSUS - TYPE: " + type + "\n\n\n");
+        return switch (type) {
+            case READ -> new ReadMessage(dis.readInt());
 
-        switch (type) {
-            case READ:
-                int readInstance = dis.readInt();
-                return new ReadMessage(readInstance);
-
-            case STATE:
+            case STATE -> {
                 int stateInstance = dis.readInt();
                 long timestamp = dis.readLong();
-                String stateValue = dis.readUTF();
 
-                System.out.println("\nSTATE VALUE: " + stateValue + "\n");
-
-                if ("null".equals(stateValue)) {
-                    stateValue = null;
+                // Read value (handle null)
+                String stateValue = null;
+                boolean hasValue = dis.readBoolean();
+                if (hasValue) {
+                    stateValue = dis.readUTF();
                 }
 
                 // Read proofs
                 int proofsCount = dis.readInt();
-                List<byte[]> proofs = new ArrayList<>();
+                var proofs = new ArrayList<byte[]>();
                 for (int i = 0; i < proofsCount; i++) {
                     int proofLength = dis.readInt();
                     byte[] proof = new byte[proofLength];
@@ -719,40 +881,111 @@ class ConsensusMessage {
                     proofs.add(proof);
                 }
 
-                return new StateMessage(stateInstance, timestamp, stateValue, proofs);
+                // Read writeSet
+                Map<Long, String> writeSet = new HashMap<>();
+                int writeSetSize = dis.readInt();
+                for (int i = 0; i < writeSetSize; i++) {
+                    long key = dis.readLong();
+                    String writeValue = dis.readUTF();
+                    writeSet.put(key, writeValue);
+                }
 
-            case WRITE:
+                yield new StateMessage(stateInstance, timestamp, stateValue, proofs, writeSet);
+            }
+
+            case WRITE -> {
                 int writeInstance = dis.readInt();
                 long writeTimestamp = dis.readLong();
-                String writeValue = dis.readUTF();
-                if ("null".equals(writeValue)) {
-                    writeValue = null;
+
+                // Read value (handle null)
+                String writeValue = null;
+                boolean hasValue = dis.readBoolean();
+                if (hasValue) {
+                    writeValue = dis.readUTF();
                 }
 
-                return new WriteMessage(writeInstance, writeTimestamp, writeValue);
+                yield new WriteMessage(writeInstance, writeTimestamp, writeValue);
+            }
 
-            case ACK:
+            case ACK -> {
                 int ackInstance = dis.readInt();
                 long ackTimestamp = dis.readLong();
-                String ackValue = dis.readUTF();
-                if ("null".equals(ackValue)) {
-                    ackValue = null;
+
+                // Read value (handle null)
+                String ackValue = null;
+                boolean hasValue = dis.readBoolean();
+                if (hasValue) {
+                    ackValue = dis.readUTF();
                 }
 
-                return new AckMessage(ackInstance, ackTimestamp, ackValue);
+                yield new AckMessage(ackInstance, ackTimestamp, ackValue);
+            }
 
-            case DECIDE:
+            case DECIDE -> {
                 int decideInstance = dis.readInt();
-                String decideValue = dis.readUTF();
-                if ("null".equals(decideValue)) {
-                    decideValue = null;
+
+                // Read value (handle null)
+                String decideValue = null;
+                boolean hasValue = dis.readBoolean();
+                if (hasValue) {
+                    decideValue = dis.readUTF();
                 }
 
-                return new DecideMessage(decideInstance, decideValue);
+                yield new DecideMessage(decideInstance, decideValue);
+            }
 
-            default:
-                throw new IOException("Unknown message type: " + type);
-        }
+            case COLLECT -> {
+                int collectInstance = dis.readInt();
+
+                // Read collected state messages
+                int collectedSize = dis.readInt();
+                Map<Integer, StateMessage> collected = new HashMap<>();
+
+                for (int i = 0; i < collectedSize; i++) {
+                    // Read process ID
+                    int processId = dis.readInt();
+
+                    // Read StateMessage
+                    int stateInstance = dis.readInt();
+                    long timestamp = dis.readLong();
+
+                    // Read value (handle null)
+                    String stateValue = null;
+                    boolean hasValue = dis.readBoolean();
+                    if (hasValue) {
+                        stateValue = dis.readUTF();
+                    }
+
+                    // Read proofs
+                    int proofsCount = dis.readInt();
+                    var proofs = new ArrayList<byte[]>();
+                    for (int j = 0; j < proofsCount; j++) {
+                        int proofLength = dis.readInt();
+                        byte[] proof = new byte[proofLength];
+                        dis.readFully(proof);
+                        proofs.add(proof);
+                    }
+
+                    // Read write set
+                    Map<Long, String> writeSet = new HashMap<>();
+                    int writeSetSize = dis.readInt();
+                    for (int j = 0; j < writeSetSize; j++) {
+                        long key = dis.readLong();
+                        String writeValue = dis.readUTF();
+                        writeSet.put(key, writeValue);
+                    }
+
+                    // Create and add StateMessage to collected
+                    StateMessage stateMessage = new StateMessage(
+                            stateInstance, timestamp, stateValue, proofs, writeSet);
+                    collected.put(processId, stateMessage);
+                }
+
+                yield new CollectMessage(collectInstance, collected);
+            }
+
+            default -> throw new IOException("Unknown message type: " + type);
+        };
     }
 }
 
@@ -777,30 +1010,284 @@ class ReadMessage {
 class StateMessage {
     private final int instance;
     private final String value;
-    private final Map<Integer, String> writeSet;
+    private final long timestamp;
+    private final Map<Long, String> writeSet;
     private final List<byte[]> proofs;
 
-    public StateMessage(int instance, String value, List<byte[]> proofs, Map<Integer, String> writeSet) {
-        this.writeSet = writeSet;
+    /**
+     * Constructor for StateMessage
+     * 
+     * @param instance  The consensus instance number
+     * @param timestamp The timestamp of the message
+     * @param value     The current value
+     * @param proofs    List of proofs for the value
+     * @param writeSet  Map of previous writes
+     */
+    public StateMessage(int instance, long timestamp, String value, List<byte[]> proofs, Map<Long, String> writeSet) {
         this.instance = instance;
+        this.timestamp = timestamp;
         this.value = value;
-        this.proofs = proofs;
+        this.proofs = proofs != null ? new ArrayList<>(proofs) : new ArrayList<>(); // Defensive copy
+        this.writeSet = writeSet != null ? new HashMap<>(writeSet) : new HashMap<>(); // Defensive copy
     }
 
+    /**
+     * Get the consensus instance number
+     * 
+     * @return The instance number
+     */
     public int getInstance() {
         return instance;
     }
 
-    public Map<Integer, String> getWriteSet() {
-        return writeSet;
+    /**
+     * Get the timestamp of the message
+     * 
+     * @return The timestamp
+     */
+    public long getTimestamp() {
+        return timestamp;
     }
 
+    /**
+     * Get the current value
+     * 
+     * @return The value
+     */
     public String getValue() {
         return value;
     }
 
+    /**
+     * Get the proofs for the value
+     * 
+     * @return Unmodifiable list of proofs
+     */
     public List<byte[]> getProofs() {
-        return proofs;
+        return new ArrayList<>(proofs); // Return a defensive copy
+    }
+
+    /**
+     * Get the write set
+     * 
+     * @return Unmodifiable map of previous writes
+     */
+    public Map<Long, String> getWriteSet() {
+        return new HashMap<>(writeSet); // Return a defensive copy
+    }
+
+    /**
+     * toString method for debugging
+     * 
+     * @return String representation of the StateMessage
+     */
+    @Override
+    public String toString() {
+        return "StateMessage{" +
+                "instance=" + instance +
+                ", value='" + value + '\'' +
+                ", timestamp=" + timestamp +
+                ", proofs=" + proofs.size() +
+                ", writeSet=" + writeSet.size() +
+                '}';
+    }
+}
+
+/**
+ * COLLECT message for Phase 2
+ */
+class CollectMessage {
+    private final int instance;
+    private final Map<Integer, StateMessage> collected;
+    private final long timestamp;
+
+    /**
+     * Constructor for CollectMessage
+     * 
+     * @param instance  The consensus instance number
+     * @param collected Map of process IDs to their state messages
+     */
+    public CollectMessage(int instance, Map<Integer, StateMessage> collected) {
+        this.instance = instance;
+        this.collected = new HashMap<>(collected); // Defensive copy
+
+        // Calculate the maximum timestamp among collected messages
+        this.timestamp = collected.values().stream()
+                .mapToLong(StateMessage::getTimestamp)
+                .max()
+                .orElse(0L);
+    }
+
+    /**
+     * Get the consensus instance number
+     * 
+     * @return The instance number
+     */
+    public int getInstance() {
+        return instance;
+    }
+
+    /**
+     * Get the collected state messages
+     * 
+     * @return Unmodifiable map of collected state messages
+     */
+    public Map<Integer, StateMessage> getCollected() {
+        return new HashMap<>(collected); // Return a defensive copy
+    }
+
+    /**
+     * Get the maximum timestamp among collected messages
+     * 
+     * @return The maximum timestamp
+     */
+    public long getMaxTimestamp() {
+        return timestamp;
+    }
+
+    /**
+     * Get the number of collected state messages
+     * 
+     * @return Number of collected messages
+     */
+    public int getCollectedCount() {
+        return collected.size();
+    }
+
+    /**
+     * Find the most frequent value in the collected messages
+     * 
+     * @return The most frequent value, or null if no clear majority
+     */
+    public String getMostFrequentValue() {
+        Map<String, Integer> valueFrequency = new HashMap<>();
+
+        collected.values().stream()
+                .filter(msg -> msg.getValue() != null)
+                .forEach(msg -> valueFrequency.put(
+                        msg.getValue(),
+                        valueFrequency.getOrDefault(msg.getValue(), 0) + 1));
+
+        return valueFrequency.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null);
+    }
+
+    /**
+     * Serialize the CollectMessage for network transmission
+     * 
+     * @return Byte array representation of the message
+     * @throws IOException If serialization fails
+     */
+    public byte[] serialize() throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(baos);
+
+        // Write instance
+        dos.writeInt(instance);
+
+        // Write number of collected messages
+        dos.writeInt(collected.size());
+
+        // Write each collected message
+        for (Map.Entry<Integer, StateMessage> entry : collected.entrySet()) {
+            // Write process ID
+            dos.writeInt(entry.getKey());
+
+            // Serialize the StateMessage
+            StateMessage stateMsg = entry.getValue();
+            dos.writeInt(stateMsg.getInstance());
+            dos.writeLong(stateMsg.getTimestamp());
+
+            // Write value (handle null)
+            String value = stateMsg.getValue();
+            dos.writeBoolean(value != null);
+            if (value != null) {
+                dos.writeUTF(value);
+            }
+
+            // Write proofs
+            List<byte[]> proofs = stateMsg.getProofs();
+            dos.writeInt(proofs.size());
+            for (byte[] proof : proofs) {
+                dos.writeInt(proof.length);
+                dos.write(proof);
+            }
+
+            // Write writeset
+            Map<Long, String> writeSet = stateMsg.getWriteSet();
+            dos.writeInt(writeSet.size());
+            for (Map.Entry<Long, String> wsEntry : writeSet.entrySet()) {
+                dos.writeLong(wsEntry.getKey());
+                dos.writeUTF(wsEntry.getValue());
+            }
+        }
+
+        dos.flush();
+        return baos.toByteArray();
+    }
+
+    /**
+     * Deserialize a CollectMessage from byte array
+     * 
+     * @param data Byte array containing the serialized message
+     * @return Deserialized CollectMessage
+     * @throws IOException If deserialization fails
+     */
+    public static CollectMessage deserialize(byte[] data) throws IOException {
+        ByteArrayInputStream bais = new ByteArrayInputStream(data);
+        DataInputStream dis = new DataInputStream(bais);
+
+        // Read instance
+        int instance = dis.readInt();
+
+        // Read number of collected messages
+        int collectedCount = dis.readInt();
+        Map<Integer, StateMessage> collected = new HashMap<>();
+
+        // Read each collected message
+        for (int i = 0; i < collectedCount; i++) {
+            // Read process ID
+            int processId = dis.readInt();
+
+            // Read StateMessage details
+            int stateInstance = dis.readInt();
+            long timestamp = dis.readLong();
+
+            // Read value (handle null)
+            String value = null;
+            boolean hasValue = dis.readBoolean();
+            if (hasValue) {
+                value = dis.readUTF();
+            }
+
+            // Read proofs
+            int proofCount = dis.readInt();
+            List<byte[]> proofs = new ArrayList<>();
+            for (int j = 0; j < proofCount; j++) {
+                int proofLength = dis.readInt();
+                byte[] proof = new byte[proofLength];
+                dis.readFully(proof);
+                proofs.add(proof);
+            }
+
+            // Read writeset
+            int writeSetSize = dis.readInt();
+            Map<Long, String> writeSet = new HashMap<>();
+            for (int j = 0; j < writeSetSize; j++) {
+                long key = dis.readLong();
+                String wsValue = dis.readUTF();
+                writeSet.put(key, wsValue);
+            }
+
+            // Create StateMessage and add to collected
+            StateMessage stateMessage = new StateMessage(
+                    stateInstance, timestamp, value, proofs, writeSet);
+            collected.put(processId, stateMessage);
+        }
+
+        return new CollectMessage(instance, collected);
     }
 }
 

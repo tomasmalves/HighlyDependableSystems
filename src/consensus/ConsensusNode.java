@@ -33,9 +33,8 @@ public class ConsensusNode implements DeliverCallback {
 	private InetAddress inetAddress;
 	private byte[] buffer = new byte[1024];
 	private AuthenticatedPerfectLink apl;
-	private Map<Integer, String> writeSet;
-	private String value;
-	private int instance;
+	private Map<Long, String> writeSet;
+	private Map<Long, String> tsValue = new HashMap<>();
 	private final PublicKey publicKey;
 	private final PrivateKey privateKey;
 	private final ByzantineReadWriteConsensus consensus;
@@ -47,8 +46,8 @@ public class ConsensusNode implements DeliverCallback {
 		this.inetAddress = inetAddress;
 		this.writeSet = new HashMap<>();
 		this.activeClients = new HashMap<>();
-		this.value = "";
-		this.instance = 0;
+		this.tsValue.put(0L, "");
+
 		// Create the client-facing socket
 		this.clientSocket = new DatagramSocket(5000 + nodeId);
 
@@ -92,8 +91,8 @@ public class ConsensusNode implements DeliverCallback {
 	private void onConsensusDecide(String decidedValue) {
 		System.out.println("Node " + nodeId + " decided value: " + decidedValue);
 
-		// Parse the client ID from the decided value (format: "clientId:message")
-		String[] parts = decidedValue.split(":", 2);
+		// Parse the client ID from the decided value (format: "clientId/message")
+		String[] parts = decidedValue.split("/", 2);
 		if (parts.length == 2) {
 			String clientId = parts[0];
 			String result = parts[1];
@@ -180,6 +179,8 @@ public class ConsensusNode implements DeliverCallback {
 		Thread clientListener = new Thread(() -> {
 			System.out.println("Node " + nodeId + " listening for client requests on port " + (5000 + nodeId));
 
+			Long ts = 0L;
+
 			while (isRunning) {
 				try {
 					// Create buffer for receiving
@@ -196,28 +197,27 @@ public class ConsensusNode implements DeliverCallback {
 							" from " + clientAddress + ":" + clientPort);
 
 					// Generate a unique client ID
-					String clientId = clientAddress.getHostAddress() + ":" + clientPort + ":"
-							+ System.currentTimeMillis();
+					String clientId = clientAddress.getHostAddress() + ":" + clientPort;
+
+					String valueForConsensus = clientId + "/" + messageFromClient;
 
 					// Store client info for later response
 					activeClients.put(clientId, new ClientInfo(clientAddress, clientPort));
 
-					// Prepare the message with client ID prefix
-					String valueForConsensus = clientId + ":" + messageFromClient;
-
-					Long ts = System.currentTimeMillis();
-
-					this.tsValue.put(ts, messageFromClient);
+					System.out.println("ts - " + ts);
+					this.tsValue.put(ts, valueForConsensus);
 
 					// Start the consensus algorithm
 					if (nodeId == 1) { // Assuming node 1 is the leader
 						System.out.println("Node " + nodeId + " is the leader. Proposing value: " + valueForConsensus);
-						consensus.init(this.tsValue.get(ts));
+						consensus.init(this.tsValue.get(ts), writeSet);
 						consensus.start();
+						ts++;
 					} else {
 						System.out.println("Node " + nodeId + " participating in consensus");
-						consensus.init(this.tsValue.get(ts)); // Non-leaders start with null value
+						consensus.init(this.tsValue.get(ts), writeSet);
 						consensus.start();
+						ts++;
 					}
 
 				} catch (IOException e) {

@@ -89,7 +89,7 @@ public class ConditionalCollect {
     private void sendCollectRequest(CollectInstance instance, int destination) {
         try {
             // Create a collect request message
-            CollectMessage collectMsg = new CollectMessage(
+            CollectMessage2 collectMsg = new CollectMessage2(
                     CollectMessageType.REQUEST,
                     instance.getCollectId(),
                     instance.getRequest());
@@ -117,7 +117,7 @@ public class ConditionalCollect {
             byte[] response = generateResponse(request);
 
             // Create a collect response message
-            CollectMessage collectMsg = new CollectMessage(
+            CollectMessage2 collectMsg = new CollectMessage2(
                     CollectMessageType.RESPONSE,
                     collectId,
                     response);
@@ -201,7 +201,7 @@ public class ConditionalCollect {
         public void onDeliver(Message message, int sender) {
             try {
                 // Deserialize the collect message
-                CollectMessage collectMsg = CollectMessage.deserialize(message.getPayload());
+                CollectMessage2 collectMsg = CollectMessage2.deserialize(message.getPayload());
                 long collectId = collectMsg.getCollectId();
 
                 switch (collectMsg.getType()) {
@@ -244,12 +244,12 @@ enum CollectMessageType {
 /**
  * Collect message class
  */
-class CollectMessage {
+class CollectMessage2 {
     private final CollectMessageType type;
     private final long collectId;
     private final byte[] payload;
 
-    public CollectMessage(CollectMessageType type, long collectId, byte[] payload) {
+    public CollectMessage2(CollectMessageType type, long collectId, byte[] payload) {
         this.type = type;
         this.collectId = collectId;
         this.payload = payload;
@@ -299,7 +299,7 @@ class CollectMessage {
     /**
      * Deserialize bytes to a CollectMessage
      */
-    public static CollectMessage deserialize(byte[] data) {
+    public static CollectMessage2 deserialize(byte[] data) {
         try {
             ByteArrayInputStream bais = new ByteArrayInputStream(data);
             DataInputStream dis = new DataInputStream(bais);
@@ -318,7 +318,7 @@ class CollectMessage {
                 dis.readFully(payload);
             }
 
-            return new CollectMessage(type, collectId, payload);
+            return new CollectMessage2(type, collectId, payload);
         } catch (IOException e) {
             throw new RuntimeException("Error deserializing collect message", e);
         }
