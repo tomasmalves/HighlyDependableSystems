@@ -465,7 +465,7 @@ public class ByzantineReadWriteConsensus {
             acknowledged.add(sender);
 
             // Check if we have enough ACKs to decide
-            if (acknowledged.size() > n - f) {
+            if (acknowledged.size() >= n - f) {
                 // Send DECIDE message to all processes
                 DecideMessage decideMsg = new DecideMessage(consensusInstance, value);
                 broadcastMessage(ConsensusMessageType.DECIDE, decideMsg);
