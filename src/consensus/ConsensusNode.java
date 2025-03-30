@@ -105,7 +105,7 @@ public class ConsensusNode implements DeliverCallback {
 				System.out.println("REPORTING - " + result);
 				reportToClient(result, clientInfo.getAddress(), clientInfo.getPort());
 				// Remove client from active list after handling
-				activeClients.remove(clientId);
+				// activeClients.remove(clientId);
 			}
 		}
 	}
@@ -203,7 +203,7 @@ public class ConsensusNode implements DeliverCallback {
 
 					// Store client info for later response
 					activeClients.put(clientId, new ClientInfo(clientAddress, clientPort));
-
+					System.out.println("Active clients: " + activeClients.size());
 					System.out.println("ts - " + ts);
 					this.tsValue.put(ts, valueForConsensus);
 

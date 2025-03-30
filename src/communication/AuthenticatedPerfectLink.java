@@ -1,5 +1,7 @@
 package communication;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -72,14 +74,21 @@ public class AuthenticatedPerfectLink {
         SignedMessage signedMessage = signMessage(message);
 
         // Store for potential retransmission
-        MessageId msgId = new MessageId(message.getSequenceNumber(), selfId, destination);
+        MessageId msgId;
+
+        if (message.getType() == MessageType.DATA) {
+            // Extract consensus message type for DATA messages
+            ConsensusMessageType consensusType = extractConsensusType(message);
+            msgId = new MessageId(consensusType, message.getSequenceNumber(), selfId, destination);
+        } else {
+            // For ACK messages, use the basic constructor
+            msgId = new MessageId(message.getSequenceNumber(), selfId, destination);
+        }
+
         pendingAcks.put(msgId, message);
 
         // Send the message
         sendSignedMessage(signedMessage, destination);
-
-        // Schedule periodic retransmissions until acknowledged
-        // scheduleRetransmission(msgId, destination);
     }
 
     public void registerDeliverCallback(DeliverCallback callback) {
@@ -120,8 +129,6 @@ public class AuthenticatedPerfectLink {
                 byte[] data = Arrays.copyOf(packet.getData(), packet.getLength());
                 SignedMessage signedMessage = SignedMessage.deserialize(data);
 
-                System.out.println("\n\nAUTH - receiveLoop from - " + signedMessage.getSenderId() + "\n\n");
-
                 // Process the message
                 processIncomingMessage(signedMessage);
 
@@ -152,40 +159,41 @@ public class AuthenticatedPerfectLink {
         // Get sender's public key
         PublicKey senderPublicKey = processes.get(senderId).getPublicKey();
 
-        // Verify signature
-        /*
-         * if (!verifySignature(signedMessage, senderPublicKey)) {
-         * System.err.println("AUTH - Invalid signature on message from sender: " +
-         * senderId);
-         * return;
-         * }
-         */
-
         Message message = signedMessage.getMessage();
 
-        MessageId msgId = new MessageId(message.getSequenceNumber(), senderId, selfId);
+        // Create a MessageId based on message type
+        MessageId msgId;
 
-        System.out.println("\n\nAUTH - processIncomingMessage - type: " + message.getType() + " with sequencenumber: "
-                + msgId.sequenceNumber + "\n\n");
+        if (message.getType() == MessageType.DATA) {
+            // Extract consensus message type for DATA messages
+            ConsensusMessageType consensusType = extractConsensusType(message);
+            msgId = new MessageId(consensusType, message.getSequenceNumber(), senderId, selfId);
+        } else {
+            // For ACK messages, use the basic constructor
+            msgId = new MessageId(message.getSequenceNumber(), senderId, selfId);
+        }
+
+        System.out.println("AUTH - processIncomingMessage - type: " + message.getType() +
+                (message.getType() == MessageType.DATA ? " consensus type: " + extractConsensusType(message) : "") +
+                " with sequencenumber: " + msgId.sequenceNumber);
 
         // Handle different message types
         switch (message.getType()) {
             case DATA:
-                // If this is a new message, deliver it and send ACK
+                // If this is a new message (including consensus type), deliver it and send ACK
                 if (delivered.add(msgId)) {
-                    System.out.println("\n\nMESSAGE: " + msgId.sequenceNumber +
-                            " NOT DELIVERED YET\n\n");
                     if (deliverCallback != null) {
                         deliverCallback.onDeliver(message, senderId);
                     }
                 }
-                deliverCallback.onDeliver(message, senderId);
                 // Always send ACK, even for duplicates
                 sendAcknowledgment(message, senderId);
                 break;
 
             case ACK:
                 // Remove from pending acknowledgments
+                // For ACK messages, we need to reconstruct the original message ID
+                // This depends on how you're tracking sent messages
                 MessageId originalMsgId = new MessageId(message.getAckSequenceNumber(), selfId, senderId);
                 pendingAcks.remove(originalMsgId);
                 break;
@@ -298,15 +306,44 @@ public class AuthenticatedPerfectLink {
         }
     }
 
+    private ConsensusMessageType extractConsensusType(Message message) {
+        if (message.getType() != MessageType.DATA || message.getPayload() == null) {
+            return null;
+        }
+
+        try {
+            // Extract ConsensusMessage from the payload
+            ConsensusMessage consensusMsg = ConsensusMessage.deserialize(message.getPayload());
+            return consensusMsg.getType();
+        } catch (Exception e) {
+            System.err.println("Failed to extract consensus type: " + e.getMessage());
+            return null;
+        }
+    }
+
     /**
      * Class to identify a message uniquely
      */
     private static class MessageId {
+        private final MessageType messageType;
+        private final ConsensusMessageType consensusPhase;
         private final long sequenceNumber;
         private final int sender;
         private final int destination;
 
+        // Constructor for consensus messages
         public MessageId(long sequenceNumber, int sender, int destination) {
+            this.messageType = null; // Consensus messages are DATA messages
+            this.consensusPhase = null;
+            this.sequenceNumber = sequenceNumber;
+            this.sender = sender;
+            this.destination = destination;
+        }
+
+        // Constructor for consensus messages
+        public MessageId(ConsensusMessageType consensusPhase, long sequenceNumber, int sender, int destination) {
+            this.messageType = MessageType.DATA; // Consensus messages are DATA messages
+            this.consensusPhase = consensusPhase;
             this.sequenceNumber = sequenceNumber;
             this.sender = sender;
             this.destination = destination;
@@ -329,12 +366,19 @@ public class AuthenticatedPerfectLink {
                 return false;
             if (sender != messageId.sender)
                 return false;
-            return destination == messageId.destination;
+            if (destination != messageId.destination)
+                return false;
+            // For ACK messages, we only compare the above fields
+            if (messageType == MessageType.ACK && messageId.messageType == MessageType.ACK)
+                return true;
+            // For DATA messages, also compare the consensus phase
+            return consensusPhase == messageId.consensusPhase;
         }
 
         @Override
         public int hashCode() {
-            int result = (int) (sequenceNumber ^ (sequenceNumber >>> 32));
+            int result = messageType == MessageType.ACK ? 0 : (consensusPhase != null ? consensusPhase.hashCode() : 0);
+            result = 31 * result + (int) (sequenceNumber ^ (sequenceNumber >>> 32));
             result = 31 * result + sender;
             result = 31 * result + destination;
             return result;
