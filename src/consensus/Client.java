@@ -6,6 +6,8 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
 
 public class Client {
@@ -108,6 +110,7 @@ public class Client {
 
                 // Try to receive responses from each node
                 try {
+                    List<String> responses = new ArrayList<>();
                     for (int i = 1; i <= 4; i++) {
                         byte[] receiveBuffer = new byte[1024];
                         DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
@@ -115,13 +118,16 @@ public class Client {
                         try {
                             datagramSocket.receive(receivePacket);
                             String response = new String(receivePacket.getData(), 0, receivePacket.getLength());
-                            System.out.println("Response from " + receivePacket.getAddress() + ":" +
-                                    receivePacket.getPort() + " - " + response);
+                            responses.add(response);
+                            // System.out.println("Response from " + receivePacket.getAddress() + ":" +
+                            // receivePacket.getPort() + " - " + response);
                         } catch (java.net.SocketTimeoutException e) {
                             System.out.println("Timeout waiting for response from node " + i);
                             break; // Exit the loop if we timeout
                         }
                     }
+                    if (responses.size() > 2)
+                        System.out.println("Block: " + messageToSend + " appended to blockchain!");
                 } finally {
                     // Reset timeout for the next iteration
                     datagramSocket.setSoTimeout(0);

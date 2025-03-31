@@ -119,17 +119,19 @@ public class AuthenticatedPerfectLink {
      * Main receive loop
      */
     private void receiveLoop() {
-        byte[] buffer = new byte[8192]; // Adjust size as needed
+        byte[] buffer = new byte[8196]; // Create buffer once outside the loop
+
         while (running) {
             try {
+                // Reuse the same buffer for each packet
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-                socket.receive(packet);
+                socket.receive(packet); // This blocks until a packet is received
 
-                // Deserialize the signed message
+                // Important: Create a copy of the data to process
                 byte[] data = Arrays.copyOf(packet.getData(), packet.getLength());
-                SignedMessage signedMessage = SignedMessage.deserialize(data);
 
-                // Process the message
+                // Process the copied data, not the original buffer
+                SignedMessage signedMessage = SignedMessage.deserialize(data);
                 processIncomingMessage(signedMessage);
 
             } catch (IOException e) {
@@ -138,8 +140,9 @@ public class AuthenticatedPerfectLink {
                 }
             } catch (Exception e) {
                 System.err.println(
-                        "Error processing incoming message. Trying to understand it as a client message...");
-
+                        "Error processing incoming message. Trying to understand it as a client message... "
+                                + e.getMessage());
+                e.printStackTrace();
             }
         }
     }

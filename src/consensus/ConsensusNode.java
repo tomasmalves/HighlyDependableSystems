@@ -105,7 +105,7 @@ public class ConsensusNode implements DeliverCallback {
 				System.out.println("REPORTING - " + result);
 				reportToClient(result, clientInfo.getAddress(), clientInfo.getPort());
 				// Remove client from active list after handling
-				// activeClients.remove(clientId);
+				activeClients.remove(clientId);
 			}
 		}
 	}

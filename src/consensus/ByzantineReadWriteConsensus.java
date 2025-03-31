@@ -10,6 +10,7 @@ import communication.Message;
 import communication.ReadMessage;
 import communication.StateMessage;
 import communication.WriteMessage;
+import service.BlockchainService;
 import util.CryptoUtil;
 
 import java.io.ByteArrayInputStream;
@@ -506,8 +507,9 @@ public class ByzantineReadWriteConsensus {
             return;
         }
 
-        // Deliver the decided value
-        decide(decideMsg.getValue());
+        if (selfId != sender)
+            // Deliver the decided value
+            decide(decideMsg.getValue());
     }
 
     /**
