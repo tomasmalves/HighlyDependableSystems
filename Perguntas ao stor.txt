@@ -1,4 +1,0 @@
-Quem é que inicializa/mantém a blockchain service? O líder? Todos os nós? Se algum dos 
-processos/líder for bizantino, o que é que acontece a essa blockchain? Teria que haver um 
-género de sincronização da blockchain no inicio de cada consenso? Ou presumimos que
-o líder/processos nunca vão abaixo?
