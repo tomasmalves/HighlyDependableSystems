@@ -23,3 +23,7 @@ Implementação de uma Blockchain para cadeira de Sistemas de Elevada Confiabili
 ```
 
 - Send a message from the client and check the logs from the process terminal windows.
+
+## Testing the contracts:
+
+- Click _Run_ button on main class ISTCoinTest.java in folder `/src/contracts/tests` using your IDE. _No need to compile or run through the terminal_
