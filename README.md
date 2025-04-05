@@ -4,10 +4,30 @@ Implementação de uma Blockchain para cadeira de Sistemas de Elevada Confiabili
 
 ## To test the project:
 
-- Compile the project, in the root directory of your project (HighlyDependableSystems/):
+- Edit the `pom.xml` in the root directory:
+
+  - In line 16, where it says:
+
+    ```
+       <local.jars.dir>/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/jars</local.jars.dir>
+    ```
+
+    Replace with the path of your jar folder:
+
+    ```
+       <local.jars.dir>/path/to/your/jars</local.jars.dir>
+    ```
+
+- Save and compile the project, in the root directory (HighlyDependableSystems/) using maven:
 
 ```
-   javac -d class $(find src -name "*.java")
+   mvn clean package
+```
+
+and then:
+
+```
+   mvn clean compile
 ```
 
 - Run ConsensusNode.java for N process implemented in the project. Replace N with the ConsensusNode Id. In our case, 4 processes starting in 1. Open a terminal window for each, and run:
@@ -26,4 +46,4 @@ Implementação de uma Blockchain para cadeira de Sistemas de Elevada Confiabili
 
 ## Testing the contracts:
 
-- Click _Run_ button on main class ISTCoinTest.java in folder `/src/contracts/tests` using your IDE. _No need to compile or run through the terminal_
+- Click _Run_ button on main class ISTCoinTest.java in folder `/src/test/java/contracts/ISTCoinTest.java` using your IDE. _No need to compile or run through the terminal_

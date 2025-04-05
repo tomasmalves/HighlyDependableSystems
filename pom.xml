@@ -1,0 +1,178 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.depchain</groupId>
+    <artifactId>blockchain</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <properties>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <hyperledger.besu.version>24.12.2</hyperledger.besu.version>
+        <tuweni.version>2.3.1</tuweni.version>
+        <local.jars.dir>/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/jars</local.jars.dir>
+    </properties>
+
+    <dependencies>
+        <!-- Since we're having issues resolving dependencies from repositories, 
+             we'll use system scope to reference the local JAR files directly -->
+        
+        <!-- Hyperledger Besu -->
+        <dependency>
+            <groupId>org.hyperledger.besu</groupId>
+            <artifactId>evm</artifactId>
+            <version>${hyperledger.besu.version}</version>
+            <scope>system</scope>
+            <systemPath>${local.jars.dir}/evm-24.12.2.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>org.hyperledger.besu</groupId>
+            <artifactId>core</artifactId>
+            <version>${hyperledger.besu.version}</version>
+            <scope>system</scope>
+            <systemPath>${local.jars.dir}/core-24.12.2.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>org.hyperledger.besu</groupId>
+            <artifactId>besu-datatypes</artifactId>
+            <version>${hyperledger.besu.version}</version>
+            <scope>system</scope>
+            <systemPath>${local.jars.dir}/besu-datatypes-24.12.2.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>org.hyperledger.besu</groupId>
+            <artifactId>rlp</artifactId>
+            <version>${hyperledger.besu.version}</version>
+            <scope>system</scope>
+            <systemPath>${local.jars.dir}/rlp-24.12.2.jar</systemPath>
+        </dependency>
+
+        <!-- Bouncy Castle for Cryptography -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>1.80</version>
+            <scope>system</scope>
+            <systemPath>${local.jars.dir}/bcprov-jdk18on-1.80.jar</systemPath>
+        </dependency>
+
+        <!-- Crypto Utils -->
+        <dependency>
+            <groupId>com.consensys.gnark</groupId>
+            <artifactId>gnark</artifactId>
+            <version>1.1.1</version>
+            <scope>system</scope>
+            <systemPath>${local.jars.dir}/gnark-1.1.1.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>com.consensys.secp256k1</groupId>
+            <artifactId>secp256k1</artifactId>
+            <version>1.1.1</version>
+            <scope>system</scope>
+            <systemPath>${local.jars.dir}/secp256k1-1.1.1.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>org.web3j</groupId>
+            <artifactId>crypto</artifactId>
+            <version>23.1.3</version>
+            <scope>system</scope>
+            <systemPath>${local.jars.dir}/crypto-23.1.3.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>org.web3j</groupId>
+            <artifactId>utils</artifactId>
+            <version>4.0.4</version>
+            <scope>system</scope>
+            <systemPath>${local.jars.dir}/web3j-utils-4.0.4.jar</systemPath>
+        </dependency>
+
+        <!-- Tuweni libs -->
+        <dependency>
+            <groupId>org.apache.tuweni</groupId>
+            <artifactId>tuweni-bytes</artifactId>
+            <version>${tuweni.version}</version>
+            <scope>system</scope>
+            <systemPath>${local.jars.dir}/tuweni-bytes-2.3.1.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.tuweni</groupId>
+            <artifactId>tuweni-units</artifactId>
+            <version>${tuweni.version}</version>
+            <scope>system</scope>
+            <systemPath>${local.jars.dir}/tuweni-units-2.3.1.jar</systemPath>
+        </dependency>
+
+        <!-- Google libraries -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.12.1</version>
+            <scope>system</scope>
+            <systemPath>${local.jars.dir}/gson-2.12.1.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>33.4.0-jre</version>
+            <scope>system</scope>
+            <systemPath>${local.jars.dir}/guava-33.4.0-jre.jar</systemPath>
+        </dependency>
+
+        <!-- Caching -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+            <version>3.2.0</version>
+            <scope>system</scope>
+            <systemPath>${local.jars.dir}/caffeine-3.2.0.jar</systemPath>
+        </dependency>
+
+        <!-- Native access -->
+        <dependency>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna</artifactId>
+            <version>5.16.0</version>
+            <scope>system</scope>
+            <systemPath>${local.jars.dir}/jna-5.16.0.jar</systemPath>
+        </dependency>
+
+        <!-- Logging -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>2.0.16</version>
+            <scope>system</scope>
+            <systemPath>${local.jars.dir}/slf4j-api-2.0.16.jar</systemPath>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.10.1</version>
+                <configuration>
+                    <source>${maven.compiler.source}</source>
+                    <target>${maven.compiler.target}</target>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.2.2</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addClasspath>true</addClasspath>
+                            <mainClass>blockchain.Main</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
