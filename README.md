@@ -4,7 +4,21 @@ Implementação de uma Blockchain para cadeira de Sistemas de Elevada Confiabili
 
 ## To test the project:
 
-- Compile the project, in the root directory of your project (HighlyDependableSystems/) using maven:
+- Edit the `pom.xml` in the root directory:
+
+  - In line 16, where it says:
+
+    ```
+       <local.jars.dir>/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/jars</local.jars.dir>
+    ```
+
+    Replace with the path of your jar folder:
+
+    ```
+       <local.jars.dir>/path/to/your/jars</local.jars.dir>
+    ```
+
+- Save and compile the project, in the root directory (HighlyDependableSystems/) using maven:
 
 ```
    mvn clean package
@@ -32,4 +46,4 @@ and then:
 
 ## Testing the contracts:
 
-- Click _Run_ button on main class ISTCoinTest.java in folder `/src/contracts/tests` using your IDE. _No need to compile or run through the terminal_
+- Click _Run_ button on main class ISTCoinTest.java in folder `/src/test/java/contracts/ISTCoinTest.java` using your IDE. _No need to compile or run through the terminal_
