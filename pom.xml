@@ -8,12 +8,16 @@
     <version>1.0-SNAPSHOT</version>
 
     <properties>
+
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <hyperledger.besu.version>24.12.2</hyperledger.besu.version>
         <tuweni.version>2.3.1</tuweni.version>
-        <local.jars.dir>/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/jars</local.jars.dir>
+        <!-- 
+		<local.jars.dir>/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/jars</local.jars.dir>	
+		-->
+        <local.jars.dir>C:/Users/Tomás Alves/Documents/GitHub/HighlyDependableSystems/src/jars</local.jars.dir>
     </properties>
 
     <dependencies>

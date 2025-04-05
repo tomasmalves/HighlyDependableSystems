@@ -1,6 +1,7 @@
 package consensus;
 
 import java.io.FileInputStream;
+
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -19,12 +20,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+
+import org.apache.tuweni.bytes.Bytes;
+
 import java.lang.Long;
+import java.math.BigInteger;
 
 import communication.AuthenticatedPerfectLink;
 import communication.Message;
 import communication.MessageType;
 import communication.DeliverCallback;
+import blockchain.Transaction;
 
 public class ConsensusNode implements DeliverCallback {
 
@@ -77,8 +83,8 @@ public class ConsensusNode implements DeliverCallback {
 		int leaderId = 1;
 
 		// Initialize consensus
-		this.consensus = new ByzantineReadWriteConsensus(
-				nodeId, leaderId, processList, maxByzantine, apl, privateKey, publicKeys);
+		this.consensus = new ByzantineReadWriteConsensus(nodeId, leaderId, processList, maxByzantine, apl, privateKey,
+				publicKeys);
 
 		// Register callback for consensus decisions
 		this.consensus.registerDecideCallback(this::onConsensusDecide);
@@ -123,6 +129,9 @@ public class ConsensusNode implements DeliverCallback {
 
 		try (FileInputStream input = new FileInputStream(
 				"/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/communication/membership.properties")) {
+			// "C:/Users/Tomás
+			// Alves/Documents/GitHub/HighlyDependableSystems/src/communication/membership.properties"))
+			// {
 			properties.load(input);
 
 			// Get the number of nodes
@@ -142,7 +151,9 @@ public class ConsensusNode implements DeliverCallback {
 
 				processMap.put(i, new ProcessInfo(host, port, publicKey));
 			}
-		} catch (IOException e) {
+		} catch (
+
+		IOException e) {
 			System.err.println("Failed to load membership configuration: " + e.getMessage());
 			// For testing, create default configuration
 			for (int i = 1; i <= 4; i++) {
@@ -193,9 +204,45 @@ public class ConsensusNode implements DeliverCallback {
 					int clientPort = receivePacket.getPort();
 
 					String messageFromClient = new String(receivePacket.getData(), 0, receivePacket.getLength());
-					System.out.println("Node " + nodeId + " received from client: " + messageFromClient +
-							" from " + clientAddress + ":" + clientPort);
+					System.out.println("Node " + nodeId + " received from client: " + messageFromClient + " from "
+							+ clientAddress + ":" + clientPort);
 
+					try {
+				        // Split the message using '|'
+				        String[] parts = messageFromClient.split("\\|");
+
+				        if (parts.length < 4) {
+				            System.out.println("Invalid message format. Skipping...");
+				            continue;
+				        }
+
+				        String source = parts[0];
+				        String destination = parts[1];
+				        BigInteger amount = new BigInteger(parts[2]);
+				        String data = parts[3];
+				        long nonce = Long.parseLong(parts[4]);
+
+				        // Handle "null" string as real null
+				        if ("null".equalsIgnoreCase(data)) {
+				            data = null;
+				        }
+				        byte[] dataBytes = data.getBytes();
+
+				        Transaction transaction = new Transaction(source, destination, amount, dataBytes, nonce, System.currentTimeMillis());
+
+				        System.out.println("Parsed transaction:");
+				        System.out.println("  From: " + source);
+				        System.out.println("  To: " + destination);
+				        System.out.println("  Amount: " + amount);
+				        System.out.println("  Data: " + data);
+
+				        // Example: Add it to a transaction pool, or forward for consensus, etc.
+					
+					} catch (Exception e) {
+				        System.out.println("Error parsing transaction: " + e.getMessage());
+				        e.printStackTrace();
+				    }
+					
 					// Generate a unique client ID
 					String clientId = clientAddress.getHostAddress() + ":" + clientPort;
 
@@ -238,10 +285,7 @@ public class ConsensusNode implements DeliverCallback {
 			byte[] responseBytes = response.getBytes();
 
 			// Create new packet for sending the response
-			DatagramPacket sendPacket = new DatagramPacket(
-					responseBytes,
-					responseBytes.length,
-					clientAddress,
+			DatagramPacket sendPacket = new DatagramPacket(responseBytes, responseBytes.length, clientAddress,
 					clientPort);
 
 			System.out.println("Node " + nodeId + " sending response to: " + clientAddress + ":" + clientPort);

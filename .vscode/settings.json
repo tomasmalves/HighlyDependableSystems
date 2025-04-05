@@ -17,5 +17,6 @@
     "src/jars/tuweni-bytes-2.3.1.jar",
     "src/jars/tuweni-units-2.3.1.jar",
     "src/jars/web3j-utils-4.0.4.jar"
-  ]
+  ],
+  "java.configuration.updateBuildConfiguration": "interactive"
 }
