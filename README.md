@@ -4,10 +4,16 @@ Implementação de uma Blockchain para cadeira de Sistemas de Elevada Confiabili
 
 ## To test the project:
 
-- Compile the project, in the root directory of your project (HighlyDependableSystems/):
+- Compile the project, in the root directory of your project (HighlyDependableSystems/) using maven:
 
 ```
-   javac -d class $(find src -name "*.java")
+   mvn clean package
+```
+
+and then:
+
+```
+   mvn clean compile
 ```
 
 - Run ConsensusNode.java for N process implemented in the project. Replace N with the ConsensusNode Id. In our case, 4 processes starting in 1. Open a terminal window for each, and run:
