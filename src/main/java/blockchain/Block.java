@@ -28,8 +28,7 @@ public class Block {
      * @param transactions      The list of transactions
      * @param state             The state after executing all transactions
      */
-    public Block(String previousBlockHash, long blockNumber, long timestamp, List<Transaction> transactions,
-            Map<String, Account> state) {
+    public Block(String previousBlockHash, long blockNumber, long timestamp, List<Transaction> transactions, Map<String, Account> state) {
         this.previousBlockHash = previousBlockHash;
         this.blockNumber = blockNumber;
         this.timestamp = timestamp;

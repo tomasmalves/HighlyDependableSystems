@@ -160,4 +160,16 @@ public class Transaction {
     public void setSignature(byte[] signature) {
         this.signature = signature;
     }
+    
+    @Override
+    public String toString() {
+        return "Transaction{" +
+                "from='" + from + '\'' +
+                ", to='" + to + '\'' +
+                ", value=" + value +
+                ", nonce=" + nonce +
+                ", data=" + data +
+                ", timestamp=" + timestamp +                
+                '}';
+    }
 }

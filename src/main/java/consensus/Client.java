@@ -16,6 +16,10 @@ import java.util.List;
 import java.util.Scanner;
 
 import org.apache.tuweni.bytes.Bytes;
+import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.datatypes.Wei;
+import org.hyperledger.besu.evm.account.MutableAccount;
+import org.hyperledger.besu.evm.fluent.SimpleWorld;
 import org.web3j.crypto.Hash;
 import org.web3j.utils.Numeric;
 
@@ -43,7 +47,12 @@ public class Client {
 				if ("exit".equalsIgnoreCase(destination))
 					break;
 
-				System.out.print("ISTCoin to transfer: ");
+				System.out.print("Do you want to transfer DepCoin(d) or ISTCoin(i)? ");
+				String coin = scanner.nextLine();
+				if ("exit".equalsIgnoreCase(coin) || !(coin.equals("d") || coin.equals("i")))
+					break;
+				
+				System.out.print("Amount to transfer: ");
 				String amountInput = scanner.nextLine();
 				if ("exit".equalsIgnoreCase(amountInput))
 					break;
@@ -52,14 +61,18 @@ public class Client {
 				Bytes data = null;
 
 				if (amountInput.isEmpty()) {
-					amount = BigInteger.valueOf(10L);
+					return;
+				} else if(coin.equals("d")){ //Transfers DepCoin with data=null
+					amount = BigInteger.valueOf(Long.parseLong(amountInput));
 					data = Bytes.fromHexString("");
-				} else {
-					amount = BigInteger.valueOf(0L);
-
+				}
+				else { //Transfers ISTCoin with data != null
+					
+					System.out.println("Vou transferir ISTCoin");
+					amount = BigInteger.valueOf(Long.parseLong(amountInput));
 					// transfer tokens to user destination
 					String transferBackData = "a9059cbb" +
-							padHexStringTo256Bit(this.account.getAddress().substring(2)) +
+							padHexStringTo256Bit(destination.substring(2)) +
 							convertIntegerToHex256Bit(Integer.parseInt(amountInput));
 
 					data = Bytes.fromHexString(transferBackData);
@@ -68,21 +81,17 @@ public class Client {
 				Long nonce = account.getNonce();
 				account.incrementNonce();
 
-				Transaction transaction = new Transaction(this.account.getAddress(), destination, amount, nonce, data,
-						System.currentTimeMillis());
+				Transaction transaction = new Transaction(this.account.getAddress(), destination, amount, nonce, data, System.currentTimeMillis());
 
 				// Sign the transaction with the sender's private key
 				transaction.sign(this.account.getPrivateKey());
 
 				// Serialize the transaction to a format suitable for network transmission
-				// Option 1: Format as pipe-delimited string for simple parsing
+				// Format as pipe-delimited string for simple parsing
 				String txString = transaction.getFrom() + "|" + transaction.getTo() + "|" +
 						transaction.getValue().toString() + "|" + transaction.getNonce() + "|" +
 						transaction.getTimestamp() + "|" + transaction.getData() + "|" +
 						CryptoUtil.bytesToHex(transaction.getSignature());
-
-				// Option 2: Use transaction.toMap() and convert to JSON
-				// String txJson = new Gson().toJson(transaction.toMap());
 
 				byte[] sendBuffer = txString.getBytes();
 
@@ -162,89 +171,22 @@ public class Client {
 		return "0".repeat(targetLength - length) + hexString;
 	}
 
-	// apagar?
-	public void interactWithConsensus() {
-		Scanner scanner = new Scanner(System.in);
-
-		while (true) {
-			try {
-				// Get message from user
-				System.out.print("> ");
-				String messageToSend = scanner.nextLine();
-				byte[] sendBuffer = messageToSend.getBytes();
-
-				if ("exit".equalsIgnoreCase(messageToSend)) {
-					break;
-				}
-
-				// Create and send packets to different nodes
-				DatagramPacket packet1 = new DatagramPacket(sendBuffer, sendBuffer.length, inetAddress, 5001);
-				DatagramPacket packet2 = new DatagramPacket(sendBuffer, sendBuffer.length, inetAddress, 5002);
-				DatagramPacket packet3 = new DatagramPacket(sendBuffer, sendBuffer.length, inetAddress, 5003);
-				DatagramPacket packet4 = new DatagramPacket(sendBuffer, sendBuffer.length, inetAddress, 5004);
-
-				datagramSocket.send(packet1);
-				datagramSocket.send(packet2);
-				datagramSocket.send(packet3);
-				datagramSocket.send(packet4);
-
-				System.out.println("Sent messages to all nodes");
-
-				// Set a timeout for receiving responses
-				datagramSocket.setSoTimeout(15000); // 15 seconds timeout
-
-				// Try to receive responses from each node
-				try {
-					List<String> responses = new ArrayList<>();
-					for (int i = 1; i <= 4; i++) {
-						byte[] receiveBuffer = new byte[1024];
-						DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
-
-						try {
-							datagramSocket.receive(receivePacket);
-							String response = new String(receivePacket.getData(), 0, receivePacket.getLength());
-							responses.add(response);
-							// System.out.println("Response from " + receivePacket.getAddress() + ":" +
-							// receivePacket.getPort() + " - " + response);
-						} catch (java.net.SocketTimeoutException e) {
-							System.out.println("Timeout waiting for response from node " + i);
-							break; // Exit the loop if we timeout
-						}
-					}
-					if (responses.size() > 2)
-						System.out.println("Block: " + messageToSend + " appended to blockchain!");
-				} finally {
-					// Reset timeout for the next iteration
-					datagramSocket.setSoTimeout(0);
-				}
-
-			} catch (IOException e) {
-				System.err.println("Error: " + e.getMessage());
-				e.printStackTrace();
-			} finally {
-				// Reset timeout for next iteration
-				try {
-					datagramSocket.setSoTimeout(0);
-				} catch (SocketException e) {
-					e.printStackTrace();
-				}
-			}
-		}
-
-		scanner.close();
-		System.out.println("Client exiting...");
-	}
-
 	public static void main(String[] args) throws SocketException, UnknownHostException {
 		try {
+			//SimpleWorld simpleWorld = new SimpleWorld();
 			// Create socket and get address
 			DatagramSocket datagramSocket = new DatagramSocket();
 			InetAddress inetAddress = InetAddress.getByName("localhost");
-			EOAccount account = new EOAccount("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef", BigInteger.valueOf(10000L),
-					0L);
+			
+//			Address ownerAddress = Address.fromHexString("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
+//			simpleWorld.createAccount(ownerAddress, 0, Wei.fromEth(100000));
+//	        MutableAccount ownerAccount = (MutableAccount) simpleWorld.get(ownerAddress);
+			
+			EOAccount account1 = new EOAccount("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef", BigInteger.valueOf(10000), 0L);
+			//EOAccount account2 = new EOAccount("0x1234567891234567891234567891234567891234", BigInteger.valueOf(10000L), 0L);
 
 			// Create and run client
-			Client client = new Client(datagramSocket, inetAddress, account);
+			Client client = new Client(datagramSocket, inetAddress, account1);
 			System.out.println("Client started. Connecting to consensus nodes on localhost.");
 			client.sendToConsensus();
 

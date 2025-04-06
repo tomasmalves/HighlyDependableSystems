@@ -45,6 +45,7 @@ public class Blockchain {
     private final Map<String, Account> currentState;
     private final String dataDir;
     private final ReadWriteLock lock;
+    private final String smartContractAddress = "0x3328358128832A260C76A4141e19E2A943CD4B6D";
 
     /**
      * Constructor for creating a new blockchain
@@ -382,10 +383,11 @@ public class Blockchain {
             // Execute the transaction
             if (tx.getData() != null && tx.getData().bitLength() > 0) {
                 // Contract call
-                // executor.executeTransaction(tx);
-                executor.callData(Bytes.fromHexString("f1351b93"));
+                executor.callData(tx.getData().slice(1,4));
+                System.out.println("VOU TRANSFERIR ISTCOIN E O GETDATA() É: " + tx.getData().slice(1,4));
                 executor.execute();
-            } else {
+            }
+            else {
                 // Simple value transfer
                 Account recipient = newState.get(tx.getTo());
                 if (recipient == null) {
@@ -398,14 +400,13 @@ public class Blockchain {
                 sender.setBalance(sender.getBalance().subtract(tx.getValue()));
                 recipient.setBalance(recipient.getBalance().add(tx.getValue()));
             }
-
             // Increment sender nonce
             sender.incrementNonce();
         }
 
         return newState;
     }
-
+    
     public static String extractReturnData(ByteArrayOutputStream byteArrayOutputStream) {
         System.out.println("Size of content: " + byteArrayOutputStream.toString().length());
         String[] lines = byteArrayOutputStream.toString().split("\\r?\\n");

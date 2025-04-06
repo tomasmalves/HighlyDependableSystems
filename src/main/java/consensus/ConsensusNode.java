@@ -9,6 +9,7 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.nio.file.Paths;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -44,14 +45,17 @@ import communication.AuthenticatedPerfectLink;
 import communication.Message;
 import communication.MessageType;
 import communication.DeliverCallback;
+import blockchain.Block;
 import blockchain.Blockchain;
 import blockchain.GenesisBlockLoader;
 import blockchain.Transaction;
 
 public class ConsensusNode implements DeliverCallback {
 
-	private final String GENESISBLOCK_PATH = "/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/contracts/genesisBlock.json";
-	private final String BLOCKCHAIN_PATH = "/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/contracts/";
+	//private final String GENESISBLOCK_PATH = "/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/contracts/genesisBlock.json";
+	//private final String BLOCKCHAIN_PATH = "/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/contracts/";
+	private final String GENESISBLOCK_PATH = "C:/Users/Tomás Alves/Documents/GitHub/HighlyDependableSystems/src/main/java/contracts/genesisBlock.json";
+	private final String BLOCKCHAIN_PATH = "C:/Users/Tomás Alves/Documents/GitHub/HighlyDependableSystems/src/main/java/contracts/";
 	private final int nodeId;
 	private DatagramSocket clientSocket;
 	private InetAddress inetAddress;
@@ -79,38 +83,30 @@ public class ConsensusNode implements DeliverCallback {
 		// Create the client-facing socket
 		this.clientSocket = new DatagramSocket(5000 + nodeId);
 
-		// Load keys from membership.json
-		InputStream inputStream = getClass().getClassLoader().getResourceAsStream("communication/membership.json");
-		if (inputStream == null) {
-			throw new FileNotFoundException("membership.json not found in resources");
-		}
-
-		String jsonContent;
-		try (Scanner scanner = new Scanner(inputStream, "UTF-8")) {
-			jsonContent = scanner.useDelimiter("\\A").next(); // Read entire content
-		}
-
+		//String jsonPath = "/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/communication/membership.json";
+		String jsonPath = "C:/Users/Tomás Alves/Documents/GitHub/HighlyDependableSystems/src/main/java/communication/membership.json";
+		String jsonContent = new String(Files.readAllBytes(Paths.get(jsonPath)));
 		JsonObject root = JsonParser.parseString(jsonContent).getAsJsonObject();
 		JsonArray nodes = root.getAsJsonArray("nodes");
 
 		for (int i = 0; i < nodes.size(); i++) {
-			JsonObject nodeObj = nodes.get(i).getAsJsonObject();
-			if (nodeObj.get("id").getAsInt() == nodeId) {
-				// Decode public key
-				String publicKeyStr = nodeObj.get("publicKey").getAsString();
-				byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyStr);
-				X509EncodedKeySpec pubKeySpec = new X509EncodedKeySpec(publicKeyBytes);
-				KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-				this.publicKey = keyFactory.generatePublic(pubKeySpec);
+		    JsonObject nodeObj = nodes.get(i).getAsJsonObject();
+		    if (nodeObj.get("id").getAsInt() == nodeId) {
+		        // Decode public key
+		        String publicKeyStr = nodeObj.get("publicKey").getAsString();
+		        byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyStr);
+		        X509EncodedKeySpec pubKeySpec = new X509EncodedKeySpec(publicKeyBytes);
+		        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+		        this.publicKey = keyFactory.generatePublic(pubKeySpec);
 
-				// Decode private key
-				String privateKeyStr = nodeObj.get("privateKey").getAsString();
-				byte[] privateKeyBytes = Base64.getDecoder().decode(privateKeyStr);
-				PKCS8EncodedKeySpec privKeySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
-				this.privateKey = keyFactory.generatePrivate(privKeySpec);
+		        // Decode private key
+		        String privateKeyStr = nodeObj.get("privateKey").getAsString();
+		        byte[] privateKeyBytes = Base64.getDecoder().decode(privateKeyStr);
+		        PKCS8EncodedKeySpec privKeySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
+		        this.privateKey = keyFactory.generatePrivate(privKeySpec);
 
-				break;
-			}
+		        break;
+		    }
 		}
 
 		// Create map for process information
@@ -138,14 +134,21 @@ public class ConsensusNode implements DeliverCallback {
 				publicKeys, blockchain);
 
 		// Register callback for consensus decisions
-		this.consensus.registerDecideCallback(this::onConsensusDecide);
+		this.consensus.registerDecideCallback(value -> {
+			try {
+				onConsensusDecide(value);
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		});
 
 		// Start communication layer
 		this.apl.start();
 	}
 
 	// Add method to handle consensus decisions
-	private void onConsensusDecide(String decidedValue) {
+	private void onConsensusDecide(String decidedValue) throws Exception {
 		System.out.println("Node " + nodeId + " decided value: " + decidedValue);
 
 		// Parse the client ID from the decided value (format: "clientId/message")
@@ -157,13 +160,32 @@ public class ConsensusNode implements DeliverCallback {
 			System.out.println("CLIENTID - " + clientId);
 			// Find the client info
 			ClientInfo clientInfo = activeClients.get(clientId);
+			
 			if (clientInfo != null) {
 				// Report result back to the client
 				System.out.println("REPORTING - " + result);
 
-				// TODO: Add to blockchain
-
 				reportToClient(result, clientInfo.getAddress(), clientInfo.getPort());
+				
+				// Convert the result string into a Transaction object
+			    Transaction tx = parseTransactionFromString(result);
+			    if (tx == null) {
+			        System.err.println("Failed to parse transaction from decided value.");
+			        return; //confirmar se dar return é a melhor opção
+			    }
+			    
+			    // Create a new block with the transaction
+			    List<Transaction> transactions = new ArrayList<>();
+			    transactions.add(tx);
+			    			    
+			    if (tx.getData() == null || tx.getData().isEmpty()) {
+			        System.out.println("Creating block for DepCoin transfer.");
+			    } else {
+			        System.out.println("Creating block for ISTCoin (smart contract) transfer.");
+			    }
+			    
+			    blockchain.addBlock(transactions);
+			    
 				// Remove client from active list after handling
 				activeClients.remove(clientId);
 			}
@@ -178,51 +200,46 @@ public class ConsensusNode implements DeliverCallback {
 
 	// Fix the loadProcessInfo method
 	private Map<Integer, ProcessInfo> loadProcessInfo() {
-		Map<Integer, ProcessInfo> processMap = new HashMap<>();
+	    Map<Integer, ProcessInfo> processMap = new HashMap<>();
 
-		try {
-			InputStream inputStream = getClass().getClassLoader().getResourceAsStream("communication/membership.json");
-			if (inputStream == null) {
-				throw new FileNotFoundException("membership.json not found in resources");
-			}
+	    try {
+	        // Use JSON config instead of .properties
+	        //String configPath = "/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/communication/membership.json";
+	        String configPath = "C:/Users/Tomás Alves/Documents/GitHub/HighlyDependableSystems/src/main/java/communication/membership.json";
+	        
+	        String jsonContent = new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(configPath)));
+	        JsonObject root = JsonParser.parseString(jsonContent).getAsJsonObject();
+	        JsonArray nodes = root.getAsJsonArray("nodes");
 
-			String jsonContent;
-			try (Scanner scanner = new Scanner(inputStream, "UTF-8")) {
-				jsonContent = scanner.useDelimiter("\\A").next(); // Read entire content
-			}
+	        for (int i = 0; i < nodes.size(); i++) {
+	            JsonObject nodeObj = nodes.get(i).getAsJsonObject();
 
-			JsonObject root = JsonParser.parseString(jsonContent).getAsJsonObject();
-			JsonArray nodes = root.getAsJsonArray("nodes");
+	            int id = nodeObj.get("id").getAsInt();
+	            String address = nodeObj.get("address").getAsString();
+	            int port = nodeObj.get("port").getAsInt();
 
-			for (int i = 0; i < nodes.size(); i++) {
-				JsonObject nodeObj = nodes.get(i).getAsJsonObject();
+	            // Load public key
+	            PublicKey publicKey;
+	            if (id == nodeId) {
+	                publicKey = this.publicKey;
+	            } else {
+	                String publicKeyStr = nodeObj.get("publicKey").getAsString();
+	                byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyStr);
+	                X509EncodedKeySpec keySpec = new X509EncodedKeySpec(publicKeyBytes);
+	                KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+	                publicKey = keyFactory.generatePublic(keySpec);
+	            }
 
-				int id = nodeObj.get("id").getAsInt();
-				String address = nodeObj.get("address").getAsString();
-				int port = nodeObj.get("port").getAsInt();
+	            processMap.put(id, new ProcessInfo(address, port, publicKey));
+	        }
+	    } catch (Exception e) {
+	        System.err.println("Failed to load membership JSON config: " + e.getMessage());
+	        e.printStackTrace();
+	    }
 
-				// Load public key
-				PublicKey publicKey;
-				if (id == nodeId) {
-					publicKey = this.publicKey;
-				} else {
-					String publicKeyStr = nodeObj.get("publicKey").getAsString();
-					byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyStr);
-					X509EncodedKeySpec keySpec = new X509EncodedKeySpec(publicKeyBytes);
-					KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-					publicKey = keyFactory.generatePublic(keySpec);
-				}
-
-				processMap.put(id, new ProcessInfo(address, port, publicKey));
-			}
-		} catch (Exception e) {
-			System.err.println("Failed to load membership JSON config: " + e.getMessage());
-			e.printStackTrace();
-		}
-
-		return processMap;
+	    return processMap;
 	}
-
+	
 	/**
 	 * Start listening for client requests
 	 */
@@ -264,9 +281,9 @@ public class ConsensusNode implements DeliverCallback {
 					String signature = parts[6];
 
 					// Build transaction object
-					Transaction transaction = new Transaction(from, to, value, nonce,
-							data, timestamp);
+					Transaction transaction = new Transaction(from, to, value, nonce, data, timestamp);
 
+					//???
 					transaction.setSignature(signature.getBytes());
 
 					System.out.println("Parsed transaction: " + transaction.toString());
@@ -286,7 +303,7 @@ public class ConsensusNode implements DeliverCallback {
 					this.tsValue.put(ts, valueForConsensus);
 
 					// Start the consensus algorithm
-					if (transactionsPool.size() > 1) {
+					if (transactionsPool.size() >= 1) {
 						System.out.println("Node " + nodeId + " is the leader. Proposing value: " + valueForConsensus);
 						consensus.init(this.tsValue.get(ts), writeSet);
 						consensus.start();
@@ -319,6 +336,39 @@ public class ConsensusNode implements DeliverCallback {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	private Transaction parseTransactionFromString(String txString) {
+	    try {
+	        // Remove the prefix "Transaction{" and suffix "}"
+	        txString = txString.replace("Transaction{", "").replace("}", "");
+
+	        Map<String, String> values = new HashMap<>();
+	        String[] fields = txString.split(", ");
+	        for (String field : fields) {
+	            String[] kv = field.split("=", 2);
+	            if (kv.length == 2) {
+	                values.put(kv[0].trim(), kv[1].trim());
+	            }
+	        }
+
+	        String from = values.get("from").replace("'", "");
+	        String to = values.get("to").replace("'", "");
+	        BigInteger value = new BigInteger(values.get("value"));
+	        long nonce = Long.parseLong(values.get("nonce"));
+	        String dataStr = values.get("data");
+	        long timestamp = Long.parseLong(values.get("timestamp"));
+
+	        Bytes data = null;
+	        if (dataStr != null && !dataStr.equalsIgnoreCase("")) {
+	            data = Bytes.fromHexString(dataStr);
+	        }
+
+	        return new Transaction(from, to, value, nonce, data, timestamp);
+	    } catch (Exception e) {
+	        e.printStackTrace();
+	        return null;
+	    }
 	}
 
 	public void shutdown() {
