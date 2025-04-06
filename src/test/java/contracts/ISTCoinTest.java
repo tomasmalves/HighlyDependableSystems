@@ -54,7 +54,6 @@ public class ISTCoinTest {
         Address istCoinAddress = Address.fromHexString("0x3328358128832A260C76A4141e19E2A943CD4B6D");
         simpleWorld.createAccount(istCoinAddress, 0, Wei.fromEth(0));
         MutableAccount istCoinAccount = (MutableAccount) simpleWorld.get(istCoinAddress);
-
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PrintStream ps = new PrintStream(baos);
         StandardJsonTracer tracer = new StandardJsonTracer(ps, true, true, true, true);

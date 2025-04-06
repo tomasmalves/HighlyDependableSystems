@@ -8,6 +8,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.tuweni.bytes.Bytes;
+
 import util.CryptoUtil;
 
 /**
@@ -17,7 +19,7 @@ public class Transaction {
     private final String from;
     private final String to;
     private final BigInteger value;
-    private final byte[] data;
+    private final Bytes data;
     private final long nonce;
     private final long timestamp;
     private byte[] signature;
@@ -33,7 +35,7 @@ public class Transaction {
      * @param nonce     The sender's nonce
      * @param timestamp The transaction timestamp
      */
-    public Transaction(String from, String to, BigInteger value, byte[] data, long nonce, long timestamp) {
+    public Transaction(String from, String to, BigInteger value, long nonce, Bytes data, long timestamp) {
         this.from = from;
         this.to = to;
         this.value = value;
@@ -51,7 +53,7 @@ public class Transaction {
      */
     public void sign(PrivateKey privateKey) throws Exception {
         byte[] data = getSignatureData();
-        Signature signature = Signature.getInstance("SHA256withECDSA");
+        Signature signature = Signature.getInstance("SHA256withRSA");
         signature.initSign(privateKey);
         signature.update(data);
         this.signature = signature.sign();
@@ -83,9 +85,9 @@ public class Transaction {
      * 
      * @return The data to be signed
      */
-    private byte[] getSignatureData() {
+    public byte[] getSignatureData() {
         return CryptoUtil.sha256(
-                from + to + value.toString() + Arrays.toString(data) + nonce + timestamp);
+                from + to + value.toString() + data.toHexString() + nonce + timestamp);
     }
 
     /**
@@ -115,7 +117,7 @@ public class Transaction {
         map.put("from", from);
         map.put("to", to);
         map.put("value", value.toString());
-        map.put("data", data != null ? "0x" + CryptoUtil.bytesToHex(data) : null);
+        map.put("data", data != null ? "0x" + data.toHexString() : null);
         map.put("nonce", nonce);
         map.put("timestamp", timestamp);
         map.put("signature", signature != null ? "0x" + CryptoUtil.bytesToHex(signature) : null);
@@ -135,7 +137,7 @@ public class Transaction {
         return value;
     }
 
-    public byte[] getData() {
+    public Bytes getData() {
         return data;
     }
 
@@ -153,5 +155,9 @@ public class Transaction {
 
     public String getHash() {
         return hash;
+    }
+
+    public void setSignature(byte[] signature) {
+        this.signature = signature;
     }
 }

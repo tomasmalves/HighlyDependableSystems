@@ -3,12 +3,14 @@ package accounts;
 import java.math.BigInteger;
 import java.util.Map;
 
+import org.apache.tuweni.bytes.Bytes;
+
 /**
  * Contract Account class
  */
 public class ContractAccount extends Account {
-    private final byte[] code;
-    private final Map<String, String> storage;
+    private Bytes code;
+    private Map<String, String> storage;
 
     /**
      * Constructor for creating a new contract account
@@ -19,7 +21,7 @@ public class ContractAccount extends Account {
      * @param code    The contract bytecode
      * @param storage The initial storage state
      */
-    public ContractAccount(String address, BigInteger balance, long nonce, byte[] code, Map<String, String> storage) {
+    public ContractAccount(String address, BigInteger balance, long nonce, Bytes code, Map<String, String> storage) {
         super(address, balance, nonce);
         this.code = code;
         this.storage = storage;
@@ -30,7 +32,7 @@ public class ContractAccount extends Account {
      * 
      * @return The contract bytecode
      */
-    public byte[] getCode() {
+    public Bytes getCode() {
         return code;
     }
 
@@ -43,6 +45,10 @@ public class ContractAccount extends Account {
         return storage;
     }
 
+    public void setCode(Bytes code) {
+        this.code = code;
+    }
+
     /**
      * Updates a key in the contract storage
      * 
@@ -53,19 +59,21 @@ public class ContractAccount extends Account {
         storage.put(key, value);
     }
 
+    /**
+     * Updates a key in the contract storage
+     * 
+     * @param key   The storage key
+     * @param value The storage value
+     */
+    public void updateStorage(Map<String, String> updatedStorage) {
+        this.storage = updatedStorage;
+    }
+
     @Override
     public Map<String, Object> toMap() {
         Map<String, Object> map = super.toMap();
-        map.put("code", "0x" + bytesToHex(code));
+        map.put("code", code.toHexString());
         map.put("storage", storage);
         return map;
-    }
-
-    private static String bytesToHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) {
-            sb.append(String.format("%02x", b));
-        }
-        return sb.toString();
     }
 }
