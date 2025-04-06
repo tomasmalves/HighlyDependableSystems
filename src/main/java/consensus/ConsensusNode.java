@@ -6,11 +6,17 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.nio.file.Paths;
+import java.nio.file.Path;
+import java.nio.file.Files;
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Signature;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.net.*;
@@ -24,6 +30,11 @@ import java.util.Set;
 
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.worldstate.WorldState;
+
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import java.lang.Long;
 import java.math.BigInteger;
@@ -47,8 +58,8 @@ public class ConsensusNode implements DeliverCallback {
 	private AuthenticatedPerfectLink apl;
 	private Map<Long, String> writeSet;
 	private Map<Long, String> tsValue = new HashMap<>();
-	private final PublicKey publicKey;
-	private final PrivateKey privateKey;
+	private PublicKey publicKey;
+	private PrivateKey privateKey;
 	private final ByzantineReadWriteConsensus consensus;
 	private Map<String, ClientInfo> activeClients;
 	private boolean isRunning = true;
@@ -67,10 +78,31 @@ public class ConsensusNode implements DeliverCallback {
 		// Create the client-facing socket
 		this.clientSocket = new DatagramSocket(5000 + nodeId);
 
-		// Generate or load keys
-		KeyPair keyPair = generateKeyPair();
-		this.publicKey = keyPair.getPublic();
-		this.privateKey = keyPair.getPrivate();
+		// Load keys from membership.json
+		String configPath = "config/membership.json";
+		String jsonContent = new String(Files.readAllBytes(Paths.get(configPath)));
+		JsonObject root = JsonParser.parseString(jsonContent).getAsJsonObject();
+		JsonArray nodes = root.getAsJsonArray("nodes");
+
+		for (int i = 0; i < nodes.size(); i++) {
+		    JsonObject nodeObj = nodes.get(i).getAsJsonObject();
+		    if (nodeObj.get("id").getAsInt() == nodeId) {
+		        // Decode public key
+		        String publicKeyStr = nodeObj.get("publicKey").getAsString();
+		        byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyStr);
+		        X509EncodedKeySpec pubKeySpec = new X509EncodedKeySpec(publicKeyBytes);
+		        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+		        this.publicKey = keyFactory.generatePublic(pubKeySpec);
+
+		        // Decode private key
+		        String privateKeyStr = nodeObj.get("privateKey").getAsString();
+		        byte[] privateKeyBytes = Base64.getDecoder().decode(privateKeyStr);
+		        PKCS8EncodedKeySpec privKeySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
+		        this.privateKey = keyFactory.generatePrivate(privKeySpec);
+
+		        break;
+		    }
+		}
 
 		// Create map for process information
 		Map<Integer, ProcessInfo> processInfoMap = loadProcessInfo();
@@ -137,65 +169,46 @@ public class ConsensusNode implements DeliverCallback {
 
 	// Fix the loadProcessInfo method
 	private Map<Integer, ProcessInfo> loadProcessInfo() {
-		Map<Integer, ProcessInfo> processMap = new HashMap<>();
-		Properties properties = new Properties();
+	    Map<Integer, ProcessInfo> processMap = new HashMap<>();
 
-		try (FileInputStream input = new FileInputStream(
-				"/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/communication/membership.properties")) {
-			// "C:/Users/Tomás
-			// Alves/Documents/GitHub/HighlyDependableSystems/src/communication/membership.properties"))
-			// {
-			properties.load(input);
+	    try {
+	        // Use JSON config instead of .properties
+	        String configPath = "/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/communication/membership.json";
+	        // String configPath = "C:/Users/Tomás Alves/Documents/GitHub/HighlyDependableSystems/src/communication/membership.json";
+	        
+	        String jsonContent = new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(configPath)));
+	        JsonObject root = JsonParser.parseString(jsonContent).getAsJsonObject();
+	        JsonArray nodes = root.getAsJsonArray("nodes");
 
-			// Get the number of nodes
-			int nodeCount = Integer.parseInt(properties.getProperty("node.count", "4"));
+	        for (int i = 0; i < nodes.size(); i++) {
+	            JsonObject nodeObj = nodes.get(i).getAsJsonObject();
 
-			for (int i = 1; i <= nodeCount; i++) {
-				String host = properties.getProperty(i + ".address", "localhost");
-				int port = Integer.parseInt(properties.getProperty(i + ".port"));
+	            int id = nodeObj.get("id").getAsInt();
+	            String address = nodeObj.get("address").getAsString();
+	            int port = nodeObj.get("port").getAsInt();
 
-				// Load or generate public key for this process
-				PublicKey publicKey;
-				if (i == nodeId) {
-					publicKey = this.publicKey;
-				} else {
-					publicKey = loadPublicKeyForNode(i);
-				}
+	            // Load public key
+	            PublicKey publicKey;
+	            if (id == nodeId) {
+	                publicKey = this.publicKey;
+	            } else {
+	                String publicKeyStr = nodeObj.get("publicKey").getAsString();
+	                byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyStr);
+	                X509EncodedKeySpec keySpec = new X509EncodedKeySpec(publicKeyBytes);
+	                KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+	                publicKey = keyFactory.generatePublic(keySpec);
+	            }
 
-				processMap.put(i, new ProcessInfo(host, port, publicKey));
-			}
-		} catch (
+	            processMap.put(id, new ProcessInfo(address, port, publicKey));
+	        }
+	    } catch (Exception e) {
+	        System.err.println("Failed to load membership JSON config: " + e.getMessage());
+	        e.printStackTrace();
+	    }
 
-		IOException e) {
-			System.err.println("Failed to load membership configuration: " + e.getMessage());
-			// For testing, create default configuration
-			for (int i = 1; i <= 4; i++) {
-				PublicKey publicKey;
-				if (i == nodeId) {
-					publicKey = this.publicKey;
-				} else {
-					publicKey = loadPublicKeyForNode(i);
-				}
-				processMap.put(i, new ProcessInfo("localhost", 6000 + i, publicKey));
-			}
-		}
-
-		return processMap;
+	    return processMap;
 	}
-
-	// Method to load public keys (for testing, you might generate them)
-	private PublicKey loadPublicKeyForNode(int nodeId) {
-		// In a real system, you would load this from a keystore or a file
-		try {
-			// Simple approach for testing: create keys for all nodes at startup
-			KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
-			keyGen.initialize(2048);
-			return keyGen.generateKeyPair().getPublic();
-		} catch (Exception e) {
-			throw new RuntimeException("Failed to create public key for node " + nodeId, e);
-		}
-	}
-
+	
 	/**
 	 * Start listening for client requests
 	 */
@@ -292,12 +305,6 @@ public class ConsensusNode implements DeliverCallback {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-	}
-
-	private KeyPair generateKeyPair() throws Exception {
-		KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
-		keyGen.initialize(2048); // 2048-bit key for security
-		return keyGen.generateKeyPair();
 	}
 
 	/**
