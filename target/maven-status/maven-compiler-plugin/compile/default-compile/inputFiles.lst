@@ -1,5 +1,6 @@
 /home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/consensus/ProcessInfo.java
 /home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/consensus/ConditionalCollect.java
+/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/blockchain/GenesisBlockLoader.java
 /home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/consensus/ByzantineReadWriteConsensus.java
 /home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/accounts/EOAccount.java
 /home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/communication/AckMessage.java
@@ -25,5 +26,4 @@
 /home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/consensus/DecideCallback.java
 /home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/communication/WriteMessage.java
 /home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/communication/AuthenticatedPerfectLink.java
-/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/consensus/ConsensusClient.java
 /home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/consensus/ConsensusNode.java

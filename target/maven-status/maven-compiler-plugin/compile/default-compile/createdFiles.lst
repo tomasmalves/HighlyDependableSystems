@@ -12,7 +12,7 @@ consensus/ConditionalCollect$1.class
 blockchain/Blockchain.class
 communication/CollectMessage.class
 consensus/ConsensusNode$ClientInfo.class
-consensus/ConsensusClient.class
+blockchain/GenesisBlockLoader.class
 communication/AuthenticatedPerfectLink.class
 communication/ConsensusMessage.class
 consensus/CollectMessage2.class

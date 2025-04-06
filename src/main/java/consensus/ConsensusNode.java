@@ -16,12 +16,14 @@ import java.util.Base64;
 import java.net.*;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
 import org.apache.tuweni.bytes.Bytes;
+import org.hyperledger.besu.evm.worldstate.WorldState;
 
 import java.lang.Long;
 import java.math.BigInteger;
@@ -30,10 +32,14 @@ import communication.AuthenticatedPerfectLink;
 import communication.Message;
 import communication.MessageType;
 import communication.DeliverCallback;
+import blockchain.Blockchain;
+import blockchain.GenesisBlockLoader;
 import blockchain.Transaction;
 
 public class ConsensusNode implements DeliverCallback {
 
+	private final String GENESISBLOCK_PATH = "/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/contracts/genesisBlock.json";
+	private final String BLOCKCHAIN_PATH = "/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/contracts/";
 	private final int nodeId;
 	private DatagramSocket clientSocket;
 	private InetAddress inetAddress;
@@ -46,6 +52,8 @@ public class ConsensusNode implements DeliverCallback {
 	private final ByzantineReadWriteConsensus consensus;
 	private Map<String, ClientInfo> activeClients;
 	private boolean isRunning = true;
+	private List<Transaction> transactionsPool;
+	private Blockchain blockchain;
 
 	public ConsensusNode(int nodeId, InetAddress inetAddress) throws Exception {
 		this.nodeId = nodeId;
@@ -53,6 +61,8 @@ public class ConsensusNode implements DeliverCallback {
 		this.writeSet = new HashMap<>();
 		this.activeClients = new HashMap<>();
 		this.tsValue.put(0L, "");
+		this.transactionsPool = new LinkedList<>();
+		this.blockchain = new Blockchain(GENESISBLOCK_PATH, BLOCKCHAIN_PATH);
 
 		// Create the client-facing socket
 		this.clientSocket = new DatagramSocket(5000 + nodeId);
@@ -84,7 +94,7 @@ public class ConsensusNode implements DeliverCallback {
 
 		// Initialize consensus
 		this.consensus = new ByzantineReadWriteConsensus(nodeId, leaderId, processList, maxByzantine, apl, privateKey,
-				publicKeys);
+				publicKeys, blockchain);
 
 		// Register callback for consensus decisions
 		this.consensus.registerDecideCallback(this::onConsensusDecide);
@@ -109,6 +119,9 @@ public class ConsensusNode implements DeliverCallback {
 			if (clientInfo != null) {
 				// Report result back to the client
 				System.out.println("REPORTING - " + result);
+
+				// TODO: Add to blockchain
+
 				reportToClient(result, clientInfo.getAddress(), clientInfo.getPort());
 				// Remove client from active list after handling
 				activeClients.remove(clientId);
@@ -128,7 +141,7 @@ public class ConsensusNode implements DeliverCallback {
 		Properties properties = new Properties();
 
 		try (FileInputStream input = new FileInputStream(
-				"/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/communication/membership.properties")) {
+				"/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/communication/membership.properties")) {
 			// "C:/Users/Tomás
 			// Alves/Documents/GitHub/HighlyDependableSystems/src/communication/membership.properties"))
 			// {
@@ -207,46 +220,37 @@ public class ConsensusNode implements DeliverCallback {
 					System.out.println("Node " + nodeId + " received from client: " + messageFromClient + " from "
 							+ clientAddress + ":" + clientPort);
 
-					try {
-				        // Split the message using '|'
-				        String[] parts = messageFromClient.split("\\|");
+					// Split the message using '|'
+					String[] parts = messageFromClient.split("\\|");
 
-				        if (parts.length < 4) {
-				            System.out.println("Invalid message format. Skipping...");
-				            continue;
-				        }
+					if (parts.length < 6) {
+						System.out.println("Invalid message format. Skipping...");
+						continue;
+					}
 
-				        String source = parts[0];
-				        String destination = parts[1];
-				        BigInteger amount = new BigInteger(parts[2]);
-				        String data = parts[3];
-				        long nonce = Long.parseLong(parts[4]);
+					String from = parts[0];
+					String to = parts[1];
+					BigInteger value = BigInteger.valueOf(Integer.parseInt(parts[2]));
+					long nonce = Long.valueOf(parts[3]);
+					long timestamp = Long.valueOf(parts[4]);
+					Bytes data = Bytes.fromHexString(parts[5]);
+					String signature = parts[6];
 
-				        // Handle "null" string as real null
-				        if ("null".equalsIgnoreCase(data)) {
-				            data = null;
-				        }
-				        byte[] dataBytes = data.getBytes();
+					// Build transaction object
+					Transaction transaction = new Transaction(from, to, value, nonce,
+							data, timestamp);
 
-				        Transaction transaction = new Transaction(source, destination, amount, dataBytes, nonce, System.currentTimeMillis());
+					transaction.setSignature(signature.getBytes());
 
-				        System.out.println("Parsed transaction:");
-				        System.out.println("  From: " + source);
-				        System.out.println("  To: " + destination);
-				        System.out.println("  Amount: " + amount);
-				        System.out.println("  Data: " + data);
+					System.out.println("Parsed transaction: " + transaction.toString());
 
-				        // Example: Add it to a transaction pool, or forward for consensus, etc.
-					
-					} catch (Exception e) {
-				        System.out.println("Error parsing transaction: " + e.getMessage());
-				        e.printStackTrace();
-				    }
-					
+					// Add to transactions waiting list
+					transactionsPool.add(transaction);
+
 					// Generate a unique client ID
 					String clientId = clientAddress.getHostAddress() + ":" + clientPort;
 
-					String valueForConsensus = clientId + "/" + messageFromClient;
+					String valueForConsensus = clientId + "/" + transaction.toString();
 
 					// Store client info for later response
 					activeClients.put(clientId, new ClientInfo(clientAddress, clientPort));
@@ -255,13 +259,8 @@ public class ConsensusNode implements DeliverCallback {
 					this.tsValue.put(ts, valueForConsensus);
 
 					// Start the consensus algorithm
-					if (nodeId == 1) { // Assuming node 1 is the leader
+					if (transactionsPool.size() > 1) {
 						System.out.println("Node " + nodeId + " is the leader. Proposing value: " + valueForConsensus);
-						consensus.init(this.tsValue.get(ts), writeSet);
-						consensus.start();
-						ts++;
-					} else {
-						System.out.println("Node " + nodeId + " participating in consensus");
 						consensus.init(this.tsValue.get(ts), writeSet);
 						consensus.start();
 						ts++;

@@ -34,6 +34,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Predicate;
 
+import blockchain.Blockchain;
+
 /**
  * Implementation of Byzantine Read/Write Epoch Consensus
  * This implementation assumes a static, non-Byzantine leader.
@@ -52,6 +54,7 @@ public class ByzantineReadWriteConsensus {
     private final ExecutorService executor;
     private Map<Long, String> writeSet;
     private List<Map<Long, String>> writesReceived;
+    private Blockchain blockchain;
 
     private String proposedValue;
     private int consensusInstance;
@@ -85,7 +88,8 @@ public class ByzantineReadWriteConsensus {
             int maxByzantine,
             AuthenticatedPerfectLink link,
             PrivateKey privateKey,
-            Map<Integer, PublicKey> publicKeys) {
+            Map<Integer, PublicKey> publicKeys,
+            Blockchain blockchain) {
 
         this.selfId = selfId;
         this.leaderId = leaderId;

@@ -14,10 +14,10 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <hyperledger.besu.version>24.12.2</hyperledger.besu.version>
         <tuweni.version>2.3.1</tuweni.version>
-        <!-- 
 		<local.jars.dir>/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/jars</local.jars.dir>	
-		-->
+        <!-- 
         <local.jars.dir>C:/Users/Tomás Alves/Documents/GitHub/HighlyDependableSystems/src/jars</local.jars.dir>
+		-->
     </properties>
 
     <dependencies>
@@ -156,6 +156,12 @@
             <scope>system</scope>
             <systemPath>${local.jars.dir}/slf4j-api-2.0.16.jar</systemPath>
         </dependency>
+    
+      <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-databind</artifactId>
+        <version>2.10.0.pr1</version>
+      </dependency>
     </dependencies>
 
     <build>

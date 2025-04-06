@@ -14,12 +14,20 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.units.bigints.UInt256;
+import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.EvmSpecVersion;
+import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.fluent.EVMExecutor;
+import org.hyperledger.besu.evm.fluent.SimpleWorld;
 import org.hyperledger.besu.evm.tracing.StandardJsonTracer;
+import org.web3j.crypto.Hash;
+import org.web3j.utils.Numeric;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -53,8 +61,127 @@ public class Blockchain {
         // Load genesis block
         loadGenesisBlock(genesisPath);
 
+        // Execute genesis block contracts
+        executeGenesisContracts();
+
         // Load existing blocks
         loadExistingBlocks();
+    }
+
+    /**
+     * Executes any contract initialization logic in the genesis block
+     */
+    private void executeGenesisContracts() throws Exception {
+        // Get the genesis block
+        if (blocks.isEmpty()) {
+            throw new Exception("No genesis block found");
+        }
+
+        Block genesisBlock = blocks.get(0);
+        Map<String, Account> genesisState = genesisBlock.getState();
+
+        // Create EVM execution environment and SimpleWorld state
+        SimpleWorld simpleWorld = new SimpleWorld();
+
+        // First populate the world with all accounts
+        for (Map.Entry<String, Account> entry : genesisState.entrySet()) {
+            String address = entry.getKey();
+            Account account = entry.getValue();
+
+            // Convert address to Besu format
+            Address besuAddress = Address.fromHexString(address);
+
+            // Create account with balance and nonce
+            simpleWorld.createAccount(besuAddress, account.getNonce(), Wei.of(account.getBalance()));
+
+            // If contract account, add code and storage
+            if (account instanceof EOAccount) {
+                EOAccount eoaccount = (EOAccount) account;
+                MutableAccount besuAccount = (MutableAccount) simpleWorld.get(besuAddress);
+            }
+        }
+
+        // Then execute contract deployment initialization for each contract account
+        for (Map.Entry<String, Account> entry : genesisState.entrySet()) {
+            Account account = entry.getValue();
+
+            if (account instanceof ContractAccount) {
+                ContractAccount caccount = (ContractAccount) account;
+                Address caddress = Address.fromHexString(caccount.getAddress());
+                MutableAccount contractAccount = (MutableAccount) simpleWorld.get(caddress);
+                Bytes code = caccount.getCode();
+
+                // Skip if no code or code is empty
+                if (code == null || code.bitLength() == 0 || code.toHexString().trim().equals("") ||
+                        code.bitLength() == 1 && code.isZero()) {
+                    continue;
+                }
+
+                // Log contract initialization
+                System.out.println("Initializing contract at: " + caddress);
+
+                // Create EVM executor for contract initialization
+                ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+                PrintStream printStream = new PrintStream(byteArrayOutputStream);
+                StandardJsonTracer tracer = new StandardJsonTracer(printStream, true, true, true, true);
+
+                var executor = EVMExecutor.evm(EvmSpecVersion.CANCUN);
+                executor.tracer(tracer);
+
+                // Contract deployment in genesis typically uses constructor arguments
+                // which are usually embedded in the code
+                executor.code(Bytes.wrap(code));
+
+                // Use a default "system" address as sender for genesis deployment
+                // or use the first EOA in genesis state
+                String senderAddress = findGenesisDeployer(genesisState);
+                executor.sender(Address.fromHexString(senderAddress));
+                executor.receiver(caddress);
+                executor.worldUpdater(simpleWorld.updater());
+
+                // Execute initialization
+                executor.execute();
+
+                // Replace with runtime ISTCoin bytecode
+                String runtime_bytecode = extractReturnData(byteArrayOutputStream);
+                contractAccount.setCode(Bytes.fromHexString(runtime_bytecode));
+                executor.code(contractAccount.getCode());
+            }
+        }
+    }
+
+    /**
+     * Finds an appropriate address to use as the deployer for genesis contracts
+     */
+    private String findGenesisDeployer(Map<String, Account> genesisState) {
+        // Default system address if no EOAs found
+        String defaultAddress = "0x0000000000000000000000000000000000000000";
+
+        // Try to find the first EOA account
+        for (Map.Entry<String, Account> entry : genesisState.entrySet()) {
+            if (entry.getValue() instanceof EOAccount) {
+                return entry.getKey();
+            }
+        }
+
+        return defaultAddress;
+    }
+
+    /**
+     * Updates the genesis block with initialized contract state
+     */
+    private void updateGenesisBlock(Map<String, Account> updatedState) throws Exception {
+        // Update genesis block
+        Block genesisBlock = blocks.get(0);
+        // This assumes Block class has a method to update its state
+        // genesisBlock.updateState(updatedState);
+
+        // Update current state
+        currentState.clear();
+        currentState.putAll(updatedState);
+
+        // Save updated genesis block
+        saveBlock(genesisBlock);
     }
 
     /**
@@ -106,7 +233,7 @@ public class Blockchain {
             if (accountJson.has("code")) {
                 // Contract account
                 String codeHex = accountJson.get("code").getAsString();
-                byte[] code = CryptoUtil.hexToBytes(codeHex);
+                Bytes code = Bytes.fromHexString(codeHex);
 
                 Map<String, String> storage = new HashMap<>();
                 if (accountJson.has("storage")) {
@@ -224,8 +351,7 @@ public class Blockchain {
 
         var executor = EVMExecutor.evm(EvmSpecVersion.CANCUN);
         executor.tracer(tracer);
-        executor.code(Bytes.fromHexString(
-                ""));
+        executor.code(Bytes.fromHexString(""));
         // executor.sender(senderAddress);
         // executor.receiver(contractAddress);
         // executor.worldUpdater(simpleWorld.updater());
@@ -254,7 +380,7 @@ public class Blockchain {
             }
 
             // Execute the transaction
-            if (tx.getData() != null && tx.getData().length > 0) {
+            if (tx.getData() != null && tx.getData().bitLength() > 0) {
                 // Contract call
                 // executor.executeTransaction(tx);
                 executor.callData(Bytes.fromHexString("f1351b93"));
@@ -278,6 +404,106 @@ public class Blockchain {
         }
 
         return newState;
+    }
+
+    public static String extractReturnData(ByteArrayOutputStream byteArrayOutputStream) {
+        System.out.println("Size of content: " + byteArrayOutputStream.toString().length());
+        String[] lines = byteArrayOutputStream.toString().split("\\r?\\n");
+        JsonObject jsonObject = JsonParser.parseString(lines[lines.length - 1]).getAsJsonObject();
+
+        String memory = jsonObject.get("memory").getAsString();
+
+        JsonArray stack = jsonObject.get("stack").getAsJsonArray();
+        int offset = Integer.decode(stack.get(stack.size() - 1).getAsString());
+        int size = Integer.decode(stack.get(stack.size() - 2).getAsString());
+
+        return memory.substring(2 + offset * 2, 2 + offset * 2 + size * 2);
+    }
+
+    public static BigInteger extractIntegerFromReturnData(ByteArrayOutputStream byteArrayOutputStream) {
+        String[] lines = byteArrayOutputStream.toString().split("\\r?\\n");
+        JsonObject jsonObject = JsonParser.parseString(lines[lines.length - 1]).getAsJsonObject();
+
+        String memory = jsonObject.get("memory").getAsString();
+        JsonArray stack = jsonObject.get("stack").getAsJsonArray();
+
+        int offset = Integer.decode(stack.get(stack.size() - 1).getAsString());
+        int size = Integer.decode(stack.get(stack.size() - 2).getAsString());
+
+        // Extract the hex string from memory
+        String returnData = memory.substring(2 + offset * 2, 2 + offset * 2 + size * 2);
+
+        // Convert to BigInteger (supports large values)
+        return new BigInteger(returnData, 16);
+    }
+
+    private static String extractRevertReasonFromTrace(String traceOutput) {
+        // This is a simplified implementation - in reality, you would need more robust
+        // parsing
+        // Look for revert reason in output trace - this could vary based on how tracer
+        // works
+        if (traceOutput.contains("revertReason")) {
+            // Try to extract from JSON
+            try {
+                String[] lines = traceOutput.split("\\r?\\n");
+                for (String line : lines) {
+                    if (line.contains("revertReason")) {
+                        JsonObject json = JsonParser.parseString(line).getAsJsonObject();
+                        if (json.has("revertReason")) {
+                            return json.get("revertReason").getAsString();
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                // Fallback to simple string search if JSON parsing fails
+                int start = traceOutput.indexOf("revertReason") + "revertReason".length() + 3; // Skip ": "
+                int end = traceOutput.indexOf("\"", start);
+                if (start > 0 && end > start) {
+                    return traceOutput.substring(start, end);
+                }
+            }
+        }
+
+        // Default message if we couldn't extract a specific reason
+        return "Transaction reverted";
+    }
+
+    private static String readStringFromStorage(SimpleWorld world, Address istCoinAddress, int slot) {
+        // This is a simplified implementation - reading strings from storage is complex
+        // In a real implementation, you'd need to handle both short and long strings
+        return world.get(istCoinAddress).getStorageValue(UInt256.valueOf(slot)).toString();
+    }
+
+    private static String calculateMappingKey(String address, int mappingSlot) {
+        if (address.startsWith("0x")) {
+            address = address.substring(2);
+        }
+
+        String paddedAddress = padHexStringTo256Bit(address);
+        String slotIndex = convertIntegerToHex256Bit(mappingSlot);
+
+        return Numeric.toHexStringNoPrefix(
+                Hash.sha3(Numeric.hexStringToByteArray(paddedAddress + slotIndex)));
+    }
+
+    public static String convertIntegerToHex256Bit(int number) {
+        BigInteger bigInt = BigInteger.valueOf(number);
+        return String.format("%064x", bigInt);
+    }
+
+    public static String padHexStringTo256Bit(String hexString) {
+        if (hexString.startsWith("0x")) {
+            hexString = hexString.substring(2);
+        }
+
+        int length = hexString.length();
+        int targetLength = 64;
+
+        if (length >= targetLength) {
+            return hexString.substring(0, targetLength);
+        }
+
+        return "0".repeat(targetLength - length) + hexString;
     }
 
     /**
