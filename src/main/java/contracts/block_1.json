@@ -1,14 +1,14 @@
 {
-  "block_hash": "0x8a05fbc3256410d08466a6fab04f9cfdbad7cce7d5426f5063d6c0f9955ed17f",
+  "block_hash": "0x40f341b5a0aed2ae85cf27e1b865481da7db696998a4df2a30204a89115b5d2e",
   "block_number": 1,
   "previous_block_hash": "0x77c982f6b8eeeb8e46c97ede8c7001ab26a5859802dd52b547939d1456270747",
   "state": {
     "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef": {
-      "balance": "95000",
+      "balance": "50000",
       "nonce": 1
     },
     "0x1234567891234567891234567891234567891234": {
-      "balance": "105000",
+      "balance": "150000",
       "nonce": 0
     },
     "0x3328358128832A260C76A4141e19E2A943CD4B6D": {
@@ -29,11 +29,11 @@
       "data": "0x0x",
       "from": "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
       "to": "0x1234567891234567891234567891234567891234",
-      "value": "5000",
+      "value": "50000",
       "nonce": 0,
-      "hash": "0x6db037ba80b49e78cfb7c70c882a99fd580aa6b008e75e3c27ff827b88f5c4a8",
-      "timestamp": 1743981617003
+      "hash": "0x960bf148ff946ae219c9b5ee9519653deca7b0b71386a3eca333b9a61e3d66ad",
+      "timestamp": 1743982596186
     }
   ],
-  "timestamp": 1743981617
+  "timestamp": 1743982596
 }

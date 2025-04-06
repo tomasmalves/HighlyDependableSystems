@@ -383,8 +383,8 @@ public class Blockchain {
             // Execute the transaction
             if (tx.getData() != null && tx.getData().bitLength() > 0) {
                 // Contract call
-                executor.callData(tx.getData().slice(1,4));
-                System.out.println("VOU TRANSFERIR ISTCOIN E O GETDATA() É: " + tx.getData().slice(1,4));
+                executor.callData(tx.getData().slice(0,4));
+                System.out.println("VOU TRANSFERIR ISTCOIN E O GETDATA() É: " + tx.getData().slice(0,4));
                 executor.execute();
             }
             else {
