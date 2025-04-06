@@ -160,28 +160,32 @@ public class AuthenticatedPerfectLink {
 		// Get sender's public key
 		PublicKey senderPublicKey = processes.get(senderId).getPublicKey();
 
-		if (verifySignature(signedMessage, senderPublicKey)) {
+		// Verify signature
+		if (!verifySignature(signedMessage, senderPublicKey)) {
+			System.err.println("Invalid signature on message from sender: " + senderId);
+			return;
+		}
 
-			Message message = signedMessage.getMessage();
+		Message message = signedMessage.getMessage();
 
-			// Create a MessageId based on message type
-			MessageId msgId;
+		// Create a MessageId based on message type
+		MessageId msgId;
 
-			if (message.getType() == MessageType.DATA) {
-				// Extract consensus message type for DATA messages
-				ConsensusMessageType consensusType = extractConsensusType(message);
-				msgId = new MessageId(consensusType, message.getSequenceNumber(), senderId, selfId);
-			} else {
-				// For ACK messages, use the basic constructor
-				msgId = new MessageId(message.getSequenceNumber(), senderId, selfId);
-			}
+		if (message.getType() == MessageType.DATA) {
+			// Extract consensus message type for DATA messages
+			ConsensusMessageType consensusType = extractConsensusType(message);
+			msgId = new MessageId(consensusType, message.getSequenceNumber(), senderId, selfId);
+		} else {
+			// For ACK messages, use the basic constructor
+			msgId = new MessageId(message.getSequenceNumber(), senderId, selfId);
+		}
 
-			System.out.println("AUTH - processIncomingMessage - type: " + message.getType()
-					+ (message.getType() == MessageType.DATA ? " consensus type: " + extractConsensusType(message) : "")
-					+ " with sequencenumber: " + msgId.sequenceNumber);
+		System.out.println("AUTH - processIncomingMessage - type: " + message.getType()
+				+ (message.getType() == MessageType.DATA ? " consensus type: " + extractConsensusType(message) : "")
+				+ " with sequencenumber: " + msgId.sequenceNumber);
 
-			// Handle different message types
-			switch (message.getType()) {
+		// Handle different message types
+		switch (message.getType()) {
 			case DATA:
 				// If this is a new message (including consensus type), deliver it and send ACK
 				if (delivered.add(msgId)) {
@@ -203,9 +207,6 @@ public class AuthenticatedPerfectLink {
 
 			default:
 				System.err.println("Unknown message type: " + message.getType());
-			}
-		} else {
-			return;
 		}
 	}
 

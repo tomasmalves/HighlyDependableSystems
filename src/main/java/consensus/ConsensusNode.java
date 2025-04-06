@@ -1,8 +1,9 @@
 package consensus;
 
 import java.io.FileInputStream;
-
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -26,11 +27,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Scanner;
 import java.util.Set;
 
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.worldstate.WorldState;
-
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -79,29 +80,37 @@ public class ConsensusNode implements DeliverCallback {
 		this.clientSocket = new DatagramSocket(5000 + nodeId);
 
 		// Load keys from membership.json
-		String configPath = "config/membership.json";
-		String jsonContent = new String(Files.readAllBytes(Paths.get(configPath)));
+		InputStream inputStream = getClass().getClassLoader().getResourceAsStream("communication/membership.json");
+		if (inputStream == null) {
+			throw new FileNotFoundException("membership.json not found in resources");
+		}
+
+		String jsonContent;
+		try (Scanner scanner = new Scanner(inputStream, "UTF-8")) {
+			jsonContent = scanner.useDelimiter("\\A").next(); // Read entire content
+		}
+
 		JsonObject root = JsonParser.parseString(jsonContent).getAsJsonObject();
 		JsonArray nodes = root.getAsJsonArray("nodes");
 
 		for (int i = 0; i < nodes.size(); i++) {
-		    JsonObject nodeObj = nodes.get(i).getAsJsonObject();
-		    if (nodeObj.get("id").getAsInt() == nodeId) {
-		        // Decode public key
-		        String publicKeyStr = nodeObj.get("publicKey").getAsString();
-		        byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyStr);
-		        X509EncodedKeySpec pubKeySpec = new X509EncodedKeySpec(publicKeyBytes);
-		        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-		        this.publicKey = keyFactory.generatePublic(pubKeySpec);
+			JsonObject nodeObj = nodes.get(i).getAsJsonObject();
+			if (nodeObj.get("id").getAsInt() == nodeId) {
+				// Decode public key
+				String publicKeyStr = nodeObj.get("publicKey").getAsString();
+				byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyStr);
+				X509EncodedKeySpec pubKeySpec = new X509EncodedKeySpec(publicKeyBytes);
+				KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+				this.publicKey = keyFactory.generatePublic(pubKeySpec);
 
-		        // Decode private key
-		        String privateKeyStr = nodeObj.get("privateKey").getAsString();
-		        byte[] privateKeyBytes = Base64.getDecoder().decode(privateKeyStr);
-		        PKCS8EncodedKeySpec privKeySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
-		        this.privateKey = keyFactory.generatePrivate(privKeySpec);
+				// Decode private key
+				String privateKeyStr = nodeObj.get("privateKey").getAsString();
+				byte[] privateKeyBytes = Base64.getDecoder().decode(privateKeyStr);
+				PKCS8EncodedKeySpec privKeySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
+				this.privateKey = keyFactory.generatePrivate(privKeySpec);
 
-		        break;
-		    }
+				break;
+			}
 		}
 
 		// Create map for process information
@@ -169,46 +178,51 @@ public class ConsensusNode implements DeliverCallback {
 
 	// Fix the loadProcessInfo method
 	private Map<Integer, ProcessInfo> loadProcessInfo() {
-	    Map<Integer, ProcessInfo> processMap = new HashMap<>();
+		Map<Integer, ProcessInfo> processMap = new HashMap<>();
 
-	    try {
-	        // Use JSON config instead of .properties
-	        String configPath = "/home/ubunto/Desktop/sec/project/HighlyDependableSystems/src/main/java/communication/membership.json";
-	        // String configPath = "C:/Users/Tomás Alves/Documents/GitHub/HighlyDependableSystems/src/communication/membership.json";
-	        
-	        String jsonContent = new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(configPath)));
-	        JsonObject root = JsonParser.parseString(jsonContent).getAsJsonObject();
-	        JsonArray nodes = root.getAsJsonArray("nodes");
+		try {
+			InputStream inputStream = getClass().getClassLoader().getResourceAsStream("communication/membership.json");
+			if (inputStream == null) {
+				throw new FileNotFoundException("membership.json not found in resources");
+			}
 
-	        for (int i = 0; i < nodes.size(); i++) {
-	            JsonObject nodeObj = nodes.get(i).getAsJsonObject();
+			String jsonContent;
+			try (Scanner scanner = new Scanner(inputStream, "UTF-8")) {
+				jsonContent = scanner.useDelimiter("\\A").next(); // Read entire content
+			}
 
-	            int id = nodeObj.get("id").getAsInt();
-	            String address = nodeObj.get("address").getAsString();
-	            int port = nodeObj.get("port").getAsInt();
+			JsonObject root = JsonParser.parseString(jsonContent).getAsJsonObject();
+			JsonArray nodes = root.getAsJsonArray("nodes");
 
-	            // Load public key
-	            PublicKey publicKey;
-	            if (id == nodeId) {
-	                publicKey = this.publicKey;
-	            } else {
-	                String publicKeyStr = nodeObj.get("publicKey").getAsString();
-	                byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyStr);
-	                X509EncodedKeySpec keySpec = new X509EncodedKeySpec(publicKeyBytes);
-	                KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-	                publicKey = keyFactory.generatePublic(keySpec);
-	            }
+			for (int i = 0; i < nodes.size(); i++) {
+				JsonObject nodeObj = nodes.get(i).getAsJsonObject();
 
-	            processMap.put(id, new ProcessInfo(address, port, publicKey));
-	        }
-	    } catch (Exception e) {
-	        System.err.println("Failed to load membership JSON config: " + e.getMessage());
-	        e.printStackTrace();
-	    }
+				int id = nodeObj.get("id").getAsInt();
+				String address = nodeObj.get("address").getAsString();
+				int port = nodeObj.get("port").getAsInt();
 
-	    return processMap;
+				// Load public key
+				PublicKey publicKey;
+				if (id == nodeId) {
+					publicKey = this.publicKey;
+				} else {
+					String publicKeyStr = nodeObj.get("publicKey").getAsString();
+					byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyStr);
+					X509EncodedKeySpec keySpec = new X509EncodedKeySpec(publicKeyBytes);
+					KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+					publicKey = keyFactory.generatePublic(keySpec);
+				}
+
+				processMap.put(id, new ProcessInfo(address, port, publicKey));
+			}
+		} catch (Exception e) {
+			System.err.println("Failed to load membership JSON config: " + e.getMessage());
+			e.printStackTrace();
+		}
+
+		return processMap;
 	}
-	
+
 	/**
 	 * Start listening for client requests
 	 */
