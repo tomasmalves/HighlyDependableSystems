@@ -307,28 +307,6 @@ public class ConsensusNode implements DeliverCallback {
 		}
 	}
 
-	/**
-	 * Signs a message using the node's private key.
-	 */
-	public String signMessage(String message) throws Exception {
-		Signature signature = Signature.getInstance("SHA256withRSA");
-		signature.initSign(privateKey);
-		signature.update(message.getBytes());
-		return Base64.getEncoder().encodeToString(signature.sign());
-	}
-
-	/**
-	 * Verifies a message signature using the sender's public key.
-	 */
-	public boolean verifySignature(String message, String receivedSignature, PublicKey senderPublicKey)
-			throws Exception {
-		Signature signature = Signature.getInstance("SHA256withRSA");
-		signature.initVerify(senderPublicKey);
-		signature.update(message.getBytes());
-		byte[] signatureBytes = Base64.getDecoder().decode(receivedSignature);
-		return signature.verify(signatureBytes);
-	}
-
 	public void shutdown() {
 		isRunning = false;
 		if (clientSocket != null) {
