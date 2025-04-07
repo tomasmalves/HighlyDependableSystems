@@ -2,14 +2,17 @@ package blockchain;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -43,9 +46,10 @@ import util.CryptoUtil;
 public class Blockchain {
     private final List<Block> blocks;
     private final Map<String, Account> currentState;
-    private final String dataDir;
     private final ReadWriteLock lock;
     private final String smartContractAddress = "0x3328358128832A260C76A4141e19E2A943CD4B6D";
+    private static final String dataDir = "blockchain/";
+    private static final String genesisPath = "blockchain/genesisBlock.json";
 
     /**
      * Constructor for creating a new blockchain
@@ -53,14 +57,13 @@ public class Blockchain {
      * @param genesisPath The path to the genesis file
      * @param dataDir     The directory to store blockchain data
      */
-    public Blockchain(String genesisPath, String dataDir) throws Exception {
+    public Blockchain() throws Exception {
         this.blocks = new ArrayList<>();
         this.currentState = new HashMap<>();
-        this.dataDir = dataDir;
         this.lock = new ReentrantReadWriteLock();
 
         // Load genesis block
-        loadGenesisBlock(genesisPath);
+        loadGenesisBlock();
 
         // Execute genesis block contracts
         executeGenesisContracts();
@@ -190,31 +193,37 @@ public class Blockchain {
      * 
      * @param genesisPath The path to the genesis file
      */
-    private void loadGenesisBlock(String genesisPath) throws Exception {
-        File genesisFile = new File(genesisPath);
-        if (!genesisFile.exists()) {
-            throw new Exception("Genesis file not found: " + genesisPath);
+    private void loadGenesisBlock() throws Exception {
+        // Use ClassLoader to get the resource as an InputStream
+        InputStream inputStream = getClass().getClassLoader().getResourceAsStream(genesisPath);
+        if (inputStream == null) {
+            throw new FileNotFoundException("genesisBlock.json not found in resources");
         }
 
-        try (FileReader reader = new FileReader(genesisFile)) {
-            JsonObject genesisJson = JsonParser.parseReader(reader).getAsJsonObject();
-            Map<String, Account> genesisState = parseState(genesisJson.getAsJsonObject("state"));
-
-            List<Transaction> transactions = new ArrayList<>();
-            long timestamp = genesisJson.has("timestamp") ? genesisJson.get("timestamp").getAsLong()
-                    : System.currentTimeMillis() / 1000;
-
-            Block genesisBlock = new Block(null, 0, timestamp, transactions, genesisState);
-
-            // Add genesis block
-            blocks.add(genesisBlock);
-
-            // Update current state
-            currentState.putAll(genesisState);
-
-            // Save genesis block
-            saveBlock(genesisBlock);
+        // Read the entire content from the InputStream
+        String jsonContent;
+        try (Scanner scanner = new Scanner(inputStream, "UTF-8")) {
+            jsonContent = scanner.useDelimiter("\\A").next();
         }
+
+        // Parse the JSON content
+        JsonObject genesisJson = JsonParser.parseString(jsonContent).getAsJsonObject();
+        Map<String, Account> genesisState = parseState(genesisJson.getAsJsonObject("state"));
+
+        List<Transaction> transactions = new ArrayList<>();
+        long timestamp = genesisJson.has("timestamp") ? genesisJson.get("timestamp").getAsLong()
+                : System.currentTimeMillis() / 1000;
+
+        Block genesisBlock = new Block(null, 0, timestamp, transactions, genesisState);
+
+        // Add genesis block
+        blocks.add(genesisBlock);
+
+        // Update current state
+        currentState.putAll(genesisState);
+
+        // Save genesis block
+        saveBlock(genesisBlock);
     }
 
     /**
@@ -258,47 +267,62 @@ public class Blockchain {
      * Loads existing blocks from the data directory
      */
     private void loadExistingBlocks() {
-        File dataDirectory = new File(dataDir);
-        if (!dataDirectory.exists()) {
-            dataDirectory.mkdirs();
-            return;
-        }
-
         // Genesis block is already loaded, so start from block 1
         long blockNumber = 1;
         while (true) {
-            File blockFile = new File(dataDir, "block_" + blockNumber + ".json");
-            if (!blockFile.exists()) {
-                break;
-            }
+            String blockPath = dataDir + "block_" + blockNumber + ".json";
+            InputStream inputStream = getClass().getClassLoader().getResourceAsStream(blockPath);
 
-            try (FileReader reader = new FileReader(blockFile)) {
-                JsonObject blockJson = JsonParser.parseReader(reader).getAsJsonObject();
-                Map<String, Account> blockState = parseState(blockJson.getAsJsonObject("state"));
+            if (inputStream == null) {
+                // Try to load from the filesystem as a fallback
+                File blockFile = new File(dataDir, "block_" + blockNumber + ".json");
+                if (!blockFile.exists()) {
+                    break;
+                }
 
-                // Parse transactions
-                List<Transaction> transactions = new ArrayList<>();
-                // TODO: Parse transactions from blockJson
-
-                Block block = new Block(
-                        blockJson.get("previous_block_hash").getAsString(),
-                        blockJson.get("block_number").getAsLong(),
-                        blockJson.get("timestamp").getAsLong(),
-                        transactions,
-                        blockState);
-
-                // Add block
-                blocks.add(block);
-
-                // Update current state
-                currentState.putAll(blockState);
-
-                blockNumber++;
-            } catch (Exception e) {
-                e.printStackTrace();
-                break;
+                try (FileReader reader = new FileReader(blockFile)) {
+                    JsonObject blockJson = JsonParser.parseReader(reader).getAsJsonObject();
+                    processBlockJson(blockJson, blockNumber);
+                    blockNumber++;
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    break;
+                }
+            } else {
+                // Read from classpath resource
+                try (Scanner scanner = new Scanner(inputStream, "UTF-8")) {
+                    String jsonContent = scanner.useDelimiter("\\A").next();
+                    JsonObject blockJson = JsonParser.parseString(jsonContent).getAsJsonObject();
+                    processBlockJson(blockJson, blockNumber);
+                    blockNumber++;
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    break;
+                }
             }
         }
+    }
+
+    // Helper method to process block JSON regardless of the source
+    private void processBlockJson(JsonObject blockJson, long blockNumber) {
+        Map<String, Account> blockState = parseState(blockJson.getAsJsonObject("state"));
+
+        // Parse transactions
+        List<Transaction> transactions = new ArrayList<>();
+        // TODO: Parse transactions from blockJson
+
+        Block block = new Block(
+                blockJson.get("previous_block_hash").getAsString(),
+                blockNumber,
+                blockJson.get("timestamp").getAsLong(),
+                transactions,
+                blockState);
+
+        // Add block
+        blocks.add(block);
+
+        // Update current state
+        currentState.putAll(blockState);
     }
 
     /**
@@ -383,11 +407,10 @@ public class Blockchain {
             // Execute the transaction
             if (tx.getData() != null && tx.getData().bitLength() > 0) {
                 // Contract call
-                executor.callData(tx.getData().slice(0,4));
-                System.out.println("VOU TRANSFERIR ISTCOIN E O GETDATA() É: " + tx.getData().slice(0,4));
+                executor.callData(tx.getData().slice(0, 4));
+                System.out.println("VOU TRANSFERIR ISTCOIN E O GETDATA() É: " + tx.getData().slice(0, 4));
                 executor.execute();
-            }
-            else {
+            } else {
                 // Simple value transfer
                 Account recipient = newState.get(tx.getTo());
                 if (recipient == null) {
@@ -406,7 +429,7 @@ public class Blockchain {
 
         return newState;
     }
-    
+
     public static String extractReturnData(ByteArrayOutputStream byteArrayOutputStream) {
         System.out.println("Size of content: " + byteArrayOutputStream.toString().length());
         String[] lines = byteArrayOutputStream.toString().split("\\r?\\n");
@@ -526,13 +549,37 @@ public class Blockchain {
      * @param block The block to save
      */
     private void saveBlock(Block block) throws Exception {
-        File blockFile = new File(dataDir, "block_" + block.getBlockNumber() + ".json");
+        // Create directory if it doesn't exist
+        File dir = new File(dataDir);
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
+
+        String blockFileName = "block_" + block.getBlockNumber() + ".json";
+        File blockFile = new File(dir, blockFileName);
 
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
         String blockJson = gson.toJson(block.toMap());
 
         try (FileWriter writer = new FileWriter(blockFile)) {
             writer.write(blockJson);
+        }
+
+        // Also save to resources if possible (this might not work at runtime)
+        // You might need a different approach if you want to update resources at
+        // runtime
+        try {
+            String resourcePath = getClass().getClassLoader().getResource(dataDir).getPath();
+            File resourceDir = new File(resourcePath);
+            if (resourceDir.exists()) {
+                File resourceBlockFile = new File(resourceDir, blockFileName);
+                try (FileWriter writer = new FileWriter(resourceBlockFile)) {
+                    writer.write(blockJson);
+                }
+            }
+        } catch (Exception e) {
+            // It's okay if we can't write to resources
+            System.out.println("Could not save block to resources: " + e.getMessage());
         }
     }
 

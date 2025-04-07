@@ -10,7 +10,6 @@ import communication.Message;
 import communication.ReadMessage;
 import communication.StateMessage;
 import communication.WriteMessage;
-import service.BlockchainService;
 import util.CryptoUtil;
 
 import java.io.ByteArrayInputStream;

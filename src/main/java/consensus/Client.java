@@ -51,7 +51,7 @@ public class Client {
 				String coin = scanner.nextLine();
 				if ("exit".equalsIgnoreCase(coin) || !(coin.equals("d") || coin.equals("i")))
 					break;
-				
+
 				System.out.print("Amount to transfer: ");
 				String amountInput = scanner.nextLine();
 				if ("exit".equalsIgnoreCase(amountInput))
@@ -62,13 +62,10 @@ public class Client {
 
 				if (amountInput.isEmpty()) {
 					return;
-				} else if(coin.equals("d")){ //Transfers DepCoin with data=null
+				} else if (coin.equals("d")) { // Transfers DepCoin with data=null
 					amount = BigInteger.valueOf(Long.parseLong(amountInput));
 					data = Bytes.fromHexString("");
-				}
-				else { //Transfers ISTCoin with data != null
-					
-					System.out.println("Vou transferir ISTCoin");
+				} else { // Transfers ISTCoin with data != null
 					amount = BigInteger.valueOf(Long.parseLong(amountInput));
 					// transfer tokens to user destination
 					String transferBackData = "a9059cbb" +
@@ -81,7 +78,8 @@ public class Client {
 				Long nonce = account.getNonce();
 				account.incrementNonce();
 
-				Transaction transaction = new Transaction(this.account.getAddress(), destination, amount, nonce, data, System.currentTimeMillis());
+				Transaction transaction = new Transaction(this.account.getAddress(), destination, amount, nonce, data,
+						System.currentTimeMillis());
 
 				// Sign the transaction with the sender's private key
 				transaction.sign(this.account.getPrivateKey());
@@ -173,17 +171,21 @@ public class Client {
 
 	public static void main(String[] args) throws SocketException, UnknownHostException {
 		try {
-			//SimpleWorld simpleWorld = new SimpleWorld();
+			// SimpleWorld simpleWorld = new SimpleWorld();
 			// Create socket and get address
 			DatagramSocket datagramSocket = new DatagramSocket();
 			InetAddress inetAddress = InetAddress.getByName("localhost");
-			
-//			Address ownerAddress = Address.fromHexString("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
-//			simpleWorld.createAccount(ownerAddress, 0, Wei.fromEth(100000));
-//	        MutableAccount ownerAccount = (MutableAccount) simpleWorld.get(ownerAddress);
-			
-			EOAccount account1 = new EOAccount("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef", BigInteger.valueOf(10000), 0L);
-			//EOAccount account2 = new EOAccount("0x1234567891234567891234567891234567891234", BigInteger.valueOf(10000L), 0L);
+
+			// Address ownerAddress =
+			// Address.fromHexString("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
+			// simpleWorld.createAccount(ownerAddress, 0, Wei.fromEth(100000));
+			// MutableAccount ownerAccount = (MutableAccount) simpleWorld.get(ownerAddress);
+
+			EOAccount account1 = new EOAccount("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef", BigInteger.valueOf(10000),
+					0L);
+			// EOAccount account2 = new
+			// EOAccount("0x1234567891234567891234567891234567891234",
+			// BigInteger.valueOf(10000L), 0L);
 
 			// Create and run client
 			Client client = new Client(datagramSocket, inetAddress, account1);
